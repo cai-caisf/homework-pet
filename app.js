@@ -15,6 +15,9 @@
   const cameraInput = document.querySelector('#task-camera-input')
   const photoInput = document.querySelector('#task-photo-input')
   const photoViewer = document.querySelector('#photo-viewer')
+  const actionDialog = document.querySelector('#action-dialog')
+  const PARENT_GUARD_KEY = 'homework-pet-parent-guard-v1'
+  const MAX_BONUS = 1000
   const viewerImage = document.querySelector('#viewer-image')
   const viewerStage = document.querySelector('#viewer-stage')
   const MAX_TASK_PHOTOS = 6
@@ -35,8 +38,11 @@
   let activePetId = ''
   let petAnimation = null
   let petAnimationTimer = 0
+  let dialogFlow = null
+  let dialogOpener = null
+  let parentGateTimer = 0
 
-  const emptyState = () => ({ points: 0, tasks: [], pets: [], food: 0, activityLog: [] })
+  const emptyState = () => ({ points: 0, tasks: [], pets: [], food: 0, activityLog: [], bonusRewards: [] })
   const makeId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`)
 
   function loadState() {
@@ -62,7 +68,8 @@
           happiness: clamp(item.happiness, 0, 100, 72), satiety: clamp(item.satiety, 0, 100, 75), playCount: nonNegativeInt(item.playCount)
         })) : [],
         food: nonNegativeInt(saved.food),
-        activityLog: Array.isArray(saved.activityLog) ? saved.activityLog.filter(item => item && typeof item.message === 'string').slice(0, 20).map(item => ({ id: String(item.id || makeId()), message: item.message.slice(0, 120), stamp: String(item.stamp || '') })) : []
+        activityLog: Array.isArray(saved.activityLog) ? saved.activityLog.filter(item => item && typeof item.message === 'string').slice(0, 20).map(item => ({ id: String(item.id || makeId()), message: item.message.slice(0, 120), stamp: String(item.stamp || '') })) : [],
+        bonusRewards: Array.isArray(saved.bonusRewards) ? saved.bonusRewards.filter(item => item && isValidReward(item.points) && Number(item.points) <= MAX_BONUS && typeof item.reason === 'string').slice(0, 100).map(item => ({ id: String(item.id || makeId()), points: Number(item.points), reason: item.reason.slice(0, 60), stamp: String(item.stamp || '') })) : []
     }
   }
 
@@ -327,7 +334,7 @@
     const heroPet = escapeHtml(state.pets[0]?.emoji || '🐶')
     const tasks = state.tasks.slice(0, 4)
     return `<div class="welcome-row"><div class="page-heading"><span class="eyebrow">每一次认真，都有小小惊喜</span><h1>今天也加油呀！</h1><p class="page-subtitle">把一件件小事做好，宠物伙伴也会为你开心。</p></div><span class="date-chip">☀️ ${todayLabel()}</span></div>
-      <section class="home-hero"><div class="hero-text"><span class="hero-kicker">我的成长星星</span><div class="hero-points"><strong>${state.points}</strong><span>积分</span></div><p>完成一项作业，就离心愿更近一步。</p><button class="hero-cta" data-view="tasks">去完成作业 <span>→</span></button></div><div class="hero-pet-art"><span class="hero-orbit"></span><span class="hero-star star-a">✦</span><span class="hero-star star-b">✦</span><span class="hero-pet-emoji">${heroPet}</span></div></section>
+      <section class="home-hero"><div class="hero-text"><span class="hero-kicker">我的成长星星</span><div class="hero-points"><strong>${state.points}</strong><span>积分</span></div><p>完成一项作业，就离心愿更近一步。</p><div class="hero-actions"><button class="hero-cta" data-view="tasks">去完成作业 <span>→</span></button><button class="hero-parent-button" data-action="parent-reward">✦ 大人奖励</button></div></div><div class="hero-pet-art"><span class="hero-orbit"></span><span class="hero-star star-a">✦</span><span class="hero-star star-b">✦</span><span class="hero-pet-emoji">${heroPet}</span></div></section>
       <div class="home-stats"><div class="stat-card"><span class="stat-icon">📚</span><div class="stat-copy"><span>今天的作业</span><strong>${completed}<small class="soft-label"> / ${total} 项</small></strong></div></div><div class="stat-card"><span class="stat-icon">🐾</span><div class="stat-copy"><span>我的小伙伴</span><strong>${state.pets.length}<small class="soft-label"> 只</small></strong></div></div><div class="stat-card"><span class="stat-icon">🥣</span><div class="stat-copy"><span>宠物饲料</span><strong>${state.food}<small class="soft-label"> 份</small></strong></div></div></div>
       <div class="home-columns"><section class="panel home-task-panel"><div class="section-title"><h2>今天的作业</h2><span class="section-note">${progressMessage}</span></div><div class="progress-label"><span>完成进度</span><strong>${progress}%</strong></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>${tasks.length ? `<div class="preview-list">${tasks.map(renderTaskPreview).join('')}</div>${total > 4 ? `<span class="section-note">还有 ${total - 4} 项任务</span>` : ''}<button class="panel-footer-link" data-view="tasks">查看全部任务 →</button>` : `<div class="soft-prompt"><span>📝</span><small>先添加作业，完成打卡就能获得积分</small><button class="panel-footer-link" data-view="tasks">添加第一项作业 →</button></div>`}</section>
       <section class="panel home-pet-panel"><div class="section-title"><h2>我的小伙伴</h2><button class="quiet-button" data-view="pets">去照顾 →</button></div>${state.pets.length ? `<div class="my-pet-summary">${state.pets.slice(0, 4).map(renderPetMini).join('')}</div><button class="panel-footer-link" data-view="shop">用积分认识新伙伴 →</button>` : `<div class="soft-prompt"><span>🐾</span><small>还没有小伙伴，攒够积分就能领养啦</small><button class="panel-footer-link" data-view="shop">去积分小铺看看 →</button></div>`}</section></div>
@@ -335,11 +342,11 @@
   }
 
   function renderTaskCard(task) {
-    return `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}">完成打卡 +${task.reward}</button>`}</div>${renderTaskPhotos(task)}<div class="task-card-actions"><span class="task-completed-at">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : '完成后点击打卡即可领取积分'}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`
+    return `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}">完成打卡 +${task.reward}</button>`}</div>${renderTaskPhotos(task)}<div class="task-card-actions"><span class="task-completed-at">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : '完成后确认打卡，即可领取积分'}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`
   }
   function renderTasks() {
     const tasks = state.tasks.map(renderTaskCard).join('')
-    return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '完成作业后点一下打卡，就能领取积分。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)}
+    return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '完成作业后确认打卡，就能领取积分。', `<div class="heading-actions"><span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span><button class="outline-button" data-action="parent-reward">✦ 大人奖励</button></div>`)}
       <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>在下方添加作业，可附上参考照片，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>
       <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排一项新作业</strong></div><form id="task-form" class="task-form">
         <label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" value="${escapeHtml(taskDraft.title)}" required></label>
@@ -476,7 +483,7 @@
 
   function renderShop() {
     const products = CATALOG.map(product => `<article class="panel product-card"><div class="product-art ${product.art}"><span>${product.emoji}</span><span class="product-heart">♥</span></div><h3 class="product-name">${product.name}</h3><p class="product-intro">${product.intro}</p><div class="product-bottom"><span class="product-price">✦ ${product.price}</span>${state.points >= product.price ? `<button class="primary-button button-small" data-action="adopt" data-id="${product.id}">领养</button>` : `<span class="need-more">还差 ${product.price - state.points} 分</span>`}</div></article>`).join('')
-    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备好吃的。')}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section><p class="shop-footnote">积分来自完成作业打卡。宠物和饲料都是网页里的虚拟物品 🐾</p>`
+    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备好吃的。')}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section><p class="shop-footnote">积分来自完成作业打卡和大人额外奖励。宠物和饲料都是网页里的虚拟物品 🐾</p>`
   }
 
   function commit(message) {
@@ -524,9 +531,122 @@
       renderDraftPhotos()
     }
   }
+  function dialogContent(title, description, body) {
+    actionDialog.innerHTML = `<div class="action-dialog-body"><div class="dialog-topline"><span class="dialog-emblem" aria-hidden="true">🌱</span><button type="button" class="quiet-button dialog-close" data-action="close-action-dialog" aria-label="关闭弹窗">×</button></div><h2 id="action-dialog-title">${title}</h2><p id="action-dialog-description" class="dialog-description">${description}</p>${body}</div>`
+  }
+  function showActionDialog(opener) {
+    dialogOpener = opener
+    document.body.classList.add('viewing-action')
+    actionDialog.showModal()
+  }
+  function confirmTask(id, opener) {
+    if (actionDialog.open) return
+    const task = state.tasks.find(item => item.id === id)
+    if (!task || task.completed) return
+    dialogFlow = { stage: 'complete', taskId: id }
+    dialogContent('这项作业完成了吗？', '检查一下有没有漏做的题目，再领取努力的小奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><p class="dialog-note">确认后标记为已完成，同一项作业只能领取一次积分。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog" autofocus>再检查一下</button><button type="button" class="primary-button" data-action="confirm-task">确认完成，领取积分</button></div>`)
+    showActionDialog(opener)
+    actionDialog.querySelector('[data-action="close-action-dialog"][autofocus]').focus()
+  }
+  function readParentGuard() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PARENT_GUARD_KEY) || '{}')
+      return { failures: clamp(saved.failures, 0, 2, 0), blockedUntil: nonNegativeInt(saved.blockedUntil) }
+    } catch (_) { return { failures: 0, blockedUntil: 0 } }
+  }
+  function writeParentGuard(guard) {
+    try { localStorage.setItem(PARENT_GUARD_KEY, JSON.stringify(guard)); return true }
+    catch (_) { showToast('无法保存验证状态，请检查浏览器存储空间'); return false }
+  }
+  function newParentQuestion() {
+    const randomInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1))
+    const a = randomInt(24, 69), b = randomInt(6, 9), c = randomInt(17, 48)
+    return Math.random() < .5
+      ? { label: `(${a} + ${c}) × ${b}`, answer: (a + c) * b }
+      : { label: `${a} × ${b} − ${c}`, answer: a * b - c }
+  }
+  function openParentReward(opener) {
+    if (actionDialog.open) return
+    dialogFlow = { stage: 'gate', passed: 0, question: newParentQuestion(), error: '' }
+    renderParentGate()
+    showActionDialog(opener)
+    actionDialog.querySelector('#parent-answer')?.focus()
+  }
+  function renderParentGate() {
+    clearInterval(parentGateTimer)
+    if (dialogFlow?.stage !== 'gate') return
+    const guard = readParentGuard()
+    const remaining = Math.max(0, Math.ceil((guard.blockedUntil - Date.now()) / 1000))
+    dialogContent('请大人来发奖励', '连续答对 2 道随机计算题后，即可填写额外奖励。', `${remaining ? `<div class="gate-pause" role="status"><strong>先休息一下</strong><p>连续答错 3 次，请 ${remaining} 秒后再试。</p></div>` : `<div class="gate-progress"><span class="${dialogFlow.passed > 0 ? 'passed' : ''}">1</span><i></i><span>2</span><small>第 ${dialogFlow.passed + 1} / 2 题</small></div><form id="parent-gate-form"><label class="math-question" for="parent-answer">${dialogFlow.question.label} = ?</label><label><span class="field-label">计算结果</span><input id="parent-answer" class="text-input parent-answer" name="answer" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="8" placeholder="请由大人填写答案" autocomplete="off" required></label><p id="gate-error" class="dialog-error" role="alert">${escapeHtml(dialogFlow.error)}</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">取消</button><button type="submit" class="primary-button">${dialogFlow.passed ? '验证并继续' : '下一题 →'}</button></div></form>`}<p class="dialog-note">计算题用于防止随手操作，无法代替家长密码；会计算或使用计算器的孩子仍可能通过。</p>`)
+    if (remaining) parentGateTimer = setInterval(renderParentGate, 1000)
+    else if (actionDialog.open) actionDialog.querySelector('#parent-answer').focus()
+  }
+  function verifyParentAnswer(form) {
+    if (dialogFlow?.stage !== 'gate') return
+    const guard = readParentGuard()
+    if (guard.blockedUntil > Date.now()) return renderParentGate()
+    const answer = String(new FormData(form).get('answer') || '').trim()
+    if (!/^\d+$/.test(answer)) return
+    if (Number(answer) !== dialogFlow.question.answer) {
+      const failures = guard.failures + 1
+      if (!writeParentGuard({ failures: failures >= 3 ? 0 : failures, blockedUntil: failures >= 3 ? Date.now() + 30000 : 0 })) return
+      dialogFlow.passed = 0
+      dialogFlow.question = newParentQuestion()
+      dialogFlow.error = `答案不对，需要重新连续答对 2 题。再答错 ${3 - failures} 次将暂停 30 秒。`
+      return renderParentGate()
+    }
+    dialogFlow.passed += 1
+    if (dialogFlow.passed < 2) {
+      dialogFlow.question = newParentQuestion()
+      dialogFlow.error = ''
+      return renderParentGate()
+    }
+    if (!writeParentGuard({ failures: 0, blockedUntil: 0 })) { dialogFlow.passed = 0; return }
+    dialogFlow = { stage: 'bonus', expiresAt: Date.now() + 5 * 60 * 1000, points: '', reason: '' }
+    renderBonusForm()
+  }
+  function bonusAuthorized() {
+    if (!['bonus', 'bonus-confirm'].includes(dialogFlow?.stage)) return false
+    if (dialogFlow.expiresAt > Date.now() && readParentGuard().blockedUntil <= Date.now()) return true
+    dialogFlow = { stage: 'gate', passed: 0, question: newParentQuestion(), error: '验证已过期，请大人重新答题。' }
+    renderParentGate()
+    return false
+  }
+  function renderBonusForm() {
+    if (!bonusAuthorized()) return
+    const recent = state.bonusRewards.slice(0, 5)
+    dialogContent('送一份额外鼓励', '大人验证已通过 · 本次发放有效，5 分钟后需重新验证。', `<form id="bonus-form" class="bonus-form"><label><span class="field-label">奖励积分（1–${MAX_BONUS} 的整数）</span><input class="text-input" name="bonusPoints" type="number" min="1" max="${MAX_BONUS}" step="1" inputmode="numeric" value="${escapeHtml(dialogFlow.points)}" placeholder="例如：20" required></label><label><span class="field-label">为什么奖励？</span><input class="text-input" name="bonusReason" maxlength="60" value="${escapeHtml(dialogFlow.reason)}" placeholder="例如：今天主动整理书包" required></label><p id="bonus-error" class="dialog-error" role="alert"></p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">取消</button><button type="submit" class="primary-button">查看奖励并确认 →</button></div></form>${recent.length ? `<section class="bonus-history"><h3>最近的大人奖励</h3>${recent.map(item => `<div class="bonus-history-row"><div><strong>${escapeHtml(item.reason)}</strong><small>${escapeHtml(item.stamp)}</small></div><span>+${item.points}</span></div>`).join('')}<p class="dialog-note">保留最近 100 笔奖励记录，可随数据一起备份。</p></section>` : '<p class="dialog-note">奖励积分和原因会保存在这个浏览器，并出现在最近的小故事里。</p>'}`)
+    actionDialog.querySelector('[name="bonusPoints"]').focus()
+  }
+  function reviewBonus(form) {
+    if (!bonusAuthorized() || dialogFlow.stage !== 'bonus') return
+    const data = new FormData(form)
+    const points = Number(data.get('bonusPoints'))
+    const reason = String(data.get('bonusReason') || '').trim()
+    if (!isValidReward(points) || points > MAX_BONUS || !reason || reason.length > 60 || !Number.isSafeInteger(state.points + points)) {
+      form.querySelector('#bonus-error').textContent = `请填写 1–${MAX_BONUS} 的整数积分，以及 1–60 字的奖励原因。`
+      return
+    }
+    Object.assign(dialogFlow, { stage: 'bonus-confirm', points, reason })
+    dialogContent('确认发放这份奖励？', '核对积分和原因，确认后立即计入余额。', `<div class="confirmation-card"><span class="confirmation-points">✦ +${points} 积分</span><strong>${escapeHtml(reason)}</strong><small>积分余额：${state.points} → ${state.points + points}</small></div><div class="dialog-actions"><button type="button" class="outline-button" data-action="edit-bonus" autofocus>返回修改</button><button type="button" class="primary-button" data-action="confirm-bonus">确认奖励 +${points} 积分</button></div><p class="dialog-note">每次发放后都会退出验证；下次奖励需要重新答题。</p>`)
+    actionDialog.querySelector('[data-action="edit-bonus"]').focus()
+  }
+  function grantBonus() {
+    if (!bonusAuthorized() || dialogFlow.stage !== 'bonus-confirm') return
+    const { points, reason } = dialogFlow
+    if (!isValidReward(points) || points > MAX_BONUS || !reason || !Number.isSafeInteger(state.points + points)) return
+    dialogFlow = null // Consume this verification before saving; repeated clicks cannot grant twice.
+    actionDialog.close()
+    state.points += points
+    state.bonusRewards.unshift({ id: makeId(), points, reason, stamp: nowStamp() })
+    state.bonusRewards = state.bonusRewards.slice(0, 100)
+    addLog(`大人奖励 +${points} 积分：${reason}`)
+    commit(`收到大人的鼓励！+${points} 积分`)
+  }
   function completeTask(id) {
     const task = state.tasks.find(item => item.id === id)
     if (!task || task.completed) return
+    if (!Number.isSafeInteger(state.points + task.reward)) return showToast('积分总数过大，暂时无法领取')
     task.completed = true
     task.completedAt = nowStamp()
     state.points += task.reward
@@ -717,7 +837,14 @@
     const button = event.target.closest('[data-action]')
     if (!button) return
     const action = button.dataset.action
-    if (action === 'complete-task') completeTask(button.dataset.id)
+    if (action === 'complete-task') confirmTask(button.dataset.id, button)
+    if (action === 'parent-reward') openParentReward(button)
+    if (action === 'close-action-dialog') actionDialog.close()
+    if (action === 'confirm-task') {
+      if (dialogFlow?.stage === 'complete') { const id = dialogFlow.taskId; actionDialog.close(); completeTask(id) }
+    }
+    if (action === 'confirm-bonus') grantBonus()
+    if (action === 'edit-bonus' && dialogFlow?.stage === 'bonus-confirm') { dialogFlow.stage = 'bonus'; renderBonusForm() }
     if (action === 'delete-task') deleteTask(button.dataset.id)
     if (action === 'adopt') adoptPet(button.dataset.id)
     if (action === 'buy-food') buyFood()
@@ -746,9 +873,12 @@
     if (action === 'toggle-photo-zoom') { viewerZoom = viewerZoom === 1 ? 2 : 1; resizeViewerPhoto() }
   })
   document.addEventListener('submit', event => {
-    if (event.target.id !== 'task-form') return
+    const form = event.target
+    if (!['task-form', 'parent-gate-form', 'bonus-form'].includes(form.id)) return
     event.preventDefault()
-    addTask(event.target)
+    if (form.id === 'task-form') addTask(form)
+    if (form.id === 'parent-gate-form') verifyParentAnswer(form)
+    if (form.id === 'bonus-form') reviewBonus(form)
   })
   document.addEventListener('input', event => {
     if (event.target.closest('#task-form') && ['title', 'subject', 'reward'].includes(event.target.name)) taskDraft[event.target.name] = event.target.value
@@ -756,6 +886,14 @@
   importFile.addEventListener('change', event => importBackup(event.target.files?.[0]))
   cameraInput.addEventListener('change', event => addDraftPhotos(event.target.files))
   photoInput.addEventListener('change', event => addDraftPhotos(event.target.files))
+  actionDialog.addEventListener('close', () => {
+    clearInterval(parentGateTimer)
+    dialogFlow = null
+    actionDialog.innerHTML = ''
+    document.body.classList.remove('viewing-action')
+    if (dialogOpener?.isConnected) dialogOpener.focus()
+    else main.focus({ preventScroll: true })
+  })
   photoViewer.addEventListener('close', () => {
     viewerRequest += 1
     viewerImage.removeAttribute('src')
@@ -770,6 +908,7 @@
   window.addEventListener('resize', () => { if (photoViewer.open) resizeViewerPhoto() })
   window.addEventListener('storage', event => {
     if (event.key === STORAGE_KEY) {
+      if (actionDialog.open) actionDialog.close()
       state = loadState()
       render()
       showToast('这个浏览器中的数据已更新')
