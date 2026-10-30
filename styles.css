@@ -144,6 +144,46 @@ h1 { margin-bottom: 7px; color: var(--ink); font-size: clamp(25px, 3vw, 33px); l
 .text-input { width: 100%; height: 41px; border: 1px solid #e8e9e0; border-radius: 11px; padding: 0 12px; background: #fff; color: var(--ink); font-size: 12px; }
 .text-input::placeholder { color: #b4b8ae; }
 .reward-input { width: 130px; }
+.form-submit-field { grid-column: 1 / -1; }
+.task-photo-field { grid-column: 1 / -1; border-top: 1px solid #f0f0e9; padding-top: 14px; }
+.photo-upload-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-upload-actions .outline-button { min-height: 38px; }
+.draft-photo-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.draft-photo-grid:empty { margin-top: 0; }
+.draft-photo-card { position: relative; width: 96px; height: 84px; }
+.draft-photo-preview { width: 100%; height: 100%; overflow: hidden; padding: 0; border: 1px solid var(--line); border-radius: 11px; background: #f0f0e9; cursor: zoom-in; }
+.draft-photo-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.remove-photo { position: absolute; top: 4px; right: 4px; display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid rgba(255,255,255,.7); border-radius: 50%; padding: 0; background: rgba(36,48,39,.75); color: #fff; cursor: pointer; font-size: 18px; }
+.photo-selection-status { margin: 8px 0 4px; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
+.photo-local-note { display: block; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.task-photos { margin: 14px 0 0 51px; }
+.task-photos-label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 10px; }
+.task-photo-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.task-photo-thumb { position: relative; flex-shrink: 0; width: 92px; height: 92px; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; padding: 0; background: #f4f3ec; cursor: zoom-in; }
+.task-photo-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; visibility: hidden; }
+.task-photo-thumb.photo-ready img { visibility: visible; }
+.photo-placeholder { position: absolute; inset: 0; display: grid; place-items: center; padding: 7px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.photo-ready .photo-placeholder { display: none; }
+.photo-enlarge-mark { position: absolute; right: 4px; bottom: 4px; border-radius: 4px; padding: 0 4px; background: rgba(36,48,39,.7); color: white; font-size: 14px; }
+.preview-photo-button { width: 35px; height: 35px; border-radius: 8px; }
+.viewing-photo { overflow: hidden; }
+.photo-viewer { width: min(1100px, 96vw); height: min(850px, 94dvh); max-width: 96vw; max-height: 94dvh; border: 1px solid #5d6d60; border-radius: 18px; padding: 0; background: #18251d; color: #fff; }
+.photo-viewer::backdrop { background: rgba(10,19,13,.85); }
+.photo-viewer-shell { display: flex; flex-direction: column; height: 100%; }
+.photo-viewer-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; min-height: 55px; gap: 16px; border-bottom: 1px solid #344439; padding: 8px 16px; }
+.photo-viewer-header strong { font-size: 13px; }
+.viewer-button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; min-width: 36px; height: 36px; border: 1px solid #4b5e50; border-radius: 9px; padding: 0 9px; background: #283e30; color: #fff; cursor: pointer; font-size: 20px; }
+.viewer-button:hover { background: #3d5a46; }
+.viewer-button:disabled { opacity: .35; }
+.viewer-close { font-size: 26px; }
+.photo-viewer-stage { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; background: #111b15; }
+.photo-viewer-canvas { display: flex; width: max-content; min-width: 100%; min-height: 100%; padding: 16px; }
+.photo-viewer-image { display: block; flex-shrink: 0; max-width: none; max-height: none; height: auto; margin: auto; cursor: zoom-in; }
+.photo-viewer [hidden] { display: none !important; }
+.viewer-status { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 25px; color: #cad9ca; font-size: 13px; text-align: center; pointer-events: none; }
+.photo-viewer-controls { display: flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 10px; min-height: 58px; border-top: 1px solid #344439; padding: 10px; }
+.viewer-fit { min-width: 78px; font-size: 11px; }
+#viewer-zoom-label { min-width: 42px; font-size: 12px; text-align: center; }
 .task-add-panel { padding: 20px; }
 .task-add-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
 .task-add-head span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; background: var(--orange-soft); color: var(--orange); font-size: 17px; }
@@ -276,12 +316,20 @@ h1 { margin-bottom: 7px; color: var(--ink); font-size: clamp(25px, 3vw, 33px); l
   .my-pet-summary { grid-template-columns: 1fr; }
   .task-form { grid-template-columns: 1fr 1fr; }
   .form-title-field { grid-column: 1 / -1; }
-  .reward-field { grid-column: 1; }
-  .form-submit-field { grid-column: 2; align-self: end; }
+  .form-subject-field { grid-column: 1 / -1; }
+  .task-photo-field { order: 1; }
+  .reward-field { grid-column: 1; order: 2; }
+  .form-submit-field { grid-column: 2; align-self: end; order: 2; }
   .form-submit-field .primary-button { width: 100%; }
   .reward-input { width: 100%; }
   .task-card { padding: 14px; }
   .task-card-actions { margin-left: 0; }
+  .task-photos { margin-left: 0; }
+  .task-photo-thumb { width: 80px; height: 80px; }
+  .preview-photo-button { width: 34px; height: 34px; }
+  .photo-viewer { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .photo-viewer-header { padding-top: max(8px, env(safe-area-inset-top)); }
+  .photo-viewer-controls { gap: 7px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
   .task-card-main { gap: 9px; }
   .task-icon { flex-basis: 35px; width: 35px; height: 35px; border-radius: 12px; font-size: 17px; }
   .pet-grid { grid-template-columns: 1fr; }

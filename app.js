@@ -12,6 +12,24 @@
   const topPoints = document.querySelector('#top-points')
   const toast = document.querySelector('#toast')
   const importFile = document.querySelector('#import-file')
+  const cameraInput = document.querySelector('#task-camera-input')
+  const photoInput = document.querySelector('#task-photo-input')
+  const photoViewer = document.querySelector('#photo-viewer')
+  const viewerImage = document.querySelector('#viewer-image')
+  const viewerStage = document.querySelector('#viewer-stage')
+  const MAX_TASK_PHOTOS = 6
+  const photoUrls = new Map()
+  let photoDbPromise
+  let taskDraft = { title: '', subject: '', reward: '10' }
+  let draftPhotos = []
+  let processingPhotos = false
+  let savingTask = false
+  let backupBusy = false
+  let viewerPhotos = []
+  let viewerIndex = 0
+  let viewerZoom = 1
+  let viewerRequest = 0
+  let viewerOpener = null
   let currentView = 'home'
   let toastTimer = 0
 
@@ -21,12 +39,20 @@
   function loadState() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-      if (!saved || typeof saved !== 'object') return emptyState()
-      return {
+      return normalizeState(saved)
+    } catch (_) {
+      return emptyState()
+    }
+  }
+
+  function normalizeState(saved) {
+    if (!saved || typeof saved !== 'object') return emptyState()
+    return {
         points: nonNegativeInt(saved.points),
         tasks: Array.isArray(saved.tasks) ? saved.tasks.filter(item => item && typeof item.title === 'string').map(item => ({
           id: String(item.id || makeId()), title: item.title.slice(0, 60), subject: typeof item.subject === 'string' ? item.subject.slice(0, 30) : '',
-          reward: isValidReward(item.reward) ? Number(item.reward) : 10, completed: Boolean(item.completed), completedAt: String(item.completedAt || ''), icon: '📚'
+          reward: isValidReward(item.reward) ? Number(item.reward) : 10, completed: Boolean(item.completed), completedAt: String(item.completedAt || ''), icon: '📚',
+          photos: Array.isArray(item.photos) ? item.photos.filter(photo => photo && typeof photo.id === 'string').slice(0, MAX_TASK_PHOTOS).map(photo => ({ id: photo.id, name: typeof photo.name === 'string' ? photo.name.slice(0, 100) : '作业照片' })) : []
         })) : [],
         pets: Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(item => ({
           id: String(item.id || makeId()), species: String(item.species || '宠物'), name: item.name.slice(0, 20), emoji: String(item.emoji || '🐾'),
@@ -34,9 +60,6 @@
         })) : [],
         food: nonNegativeInt(saved.food),
         activityLog: Array.isArray(saved.activityLog) ? saved.activityLog.filter(item => item && typeof item.message === 'string').slice(0, 20).map(item => ({ id: String(item.id || makeId()), message: item.message.slice(0, 120), stamp: String(item.stamp || '') })) : []
-      }
-    } catch (_) {
-      return emptyState()
     }
   }
 
@@ -66,6 +89,181 @@
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
   }
+
+  function openPhotoDb() {
+    if (!photoDbPromise) {
+      photoDbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open('homework-pet-photos-v1', 1)
+        request.onupgradeneeded = () => request.result.createObjectStore('photos', { keyPath: 'id' })
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error)
+      }).catch(error => { photoDbPromise = null; throw error })
+    }
+    return photoDbPromise
+  }
+  async function writePhotoRecords(records, removeIds = []) {
+    if (!records.length && !removeIds.length) return
+    const db = await openPhotoDb()
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('photos', 'readwrite')
+      const store = transaction.objectStore('photos')
+      records.forEach(record => store.put({ id: record.id, name: record.name, blob: record.blob }))
+      removeIds.forEach(id => store.delete(id))
+      transaction.oncomplete = resolve
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error('照片保存中断'))
+    })
+  }
+  async function readPhoto(id) {
+    const db = await openPhotoDb()
+    return new Promise((resolve, reject) => {
+      const request = db.transaction('photos', 'readonly').objectStore('photos').get(id)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+  }
+  async function photoUrl(id) {
+    if (photoUrls.has(id)) return photoUrls.get(id)
+    const record = await readPhoto(id)
+    if (!record?.blob) return null
+    if (!photoUrls.has(id)) photoUrls.set(id, URL.createObjectURL(record.blob))
+    return photoUrls.get(id)
+  }
+  function releasePhotoUrls() {
+    photoUrls.forEach(url => URL.revokeObjectURL(url))
+    photoUrls.clear()
+  }
+  function referencedPhotoIds(source = state) {
+    return [...new Set(source.tasks.flatMap(task => task.photos.map(photo => photo.id)))]
+  }
+  async function compressPhoto(file) {
+    const source = URL.createObjectURL(file)
+    try {
+      const image = new Image()
+      image.src = source
+      await image.decode()
+      const scale = Math.min(1, 2048 / Math.max(image.naturalWidth, image.naturalHeight))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+      const context = canvas.getContext('2d')
+      context.fillStyle = '#fff'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .86))
+      if (!blob) throw new Error('照片处理失败')
+      return { id: makeId(), name: file.name || '作业照片.jpg', blob, url: URL.createObjectURL(blob) }
+    } finally {
+      URL.revokeObjectURL(source)
+    }
+  }
+  function renderDraftPhotos() {
+    const container = document.querySelector('#draft-photos')
+    if (!container) return
+    container.innerHTML = draftPhotos.map((photo, index) => `<div class="draft-photo-card"><button type="button" class="draft-photo-preview" data-action="preview-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="放大待添加的作业照片 ${index + 1}"><img src="${escapeHtml(photo.url)}" alt="待添加的作业照片 ${index + 1}"></button><button type="button" class="remove-photo" data-action="remove-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="移除作业照片 ${index + 1}">×</button></div>`).join('')
+    document.querySelector('#photo-selection-status').textContent = processingPhotos ? '正在处理照片…' : draftPhotos.length ? `已选 ${draftPhotos.length} / ${MAX_TASK_PHOTOS} 张 · 点击照片放大` : `可拍下作业页、题目或老师的要求，最多 ${MAX_TASK_PHOTOS} 张`
+    const busy = processingPhotos || savingTask
+    document.querySelectorAll('#task-form .text-input').forEach(input => { input.disabled = savingTask })
+    document.querySelectorAll('#task-form button[type="submit"], .remove-photo').forEach(button => { button.disabled = busy })
+    document.querySelectorAll('[data-action="take-task-photo"], [data-action="choose-task-photos"]').forEach(button => { button.disabled = busy || draftPhotos.length >= MAX_TASK_PHOTOS })
+  }
+  async function addDraftPhotos(files) {
+    if (processingPhotos || savingTask || !files.length) return
+    const remaining = MAX_TASK_PHOTOS - draftPhotos.length
+    const selection = Array.from(files).slice(0, remaining)
+    processingPhotos = true
+    renderDraftPhotos()
+    let failed = 0
+    try {
+      for (const file of selection) {
+        try { draftPhotos.push(await compressPhoto(file)) } catch (_) { failed += 1 }
+      }
+      if (failed) showToast('部分图片无法读取，请使用 JPG、PNG 或 WebP 图片')
+      else if (files.length > remaining) showToast(`每项作业最多添加 ${MAX_TASK_PHOTOS} 张照片`)
+    } finally {
+      processingPhotos = false
+      cameraInput.value = ''
+      photoInput.value = ''
+      renderDraftPhotos()
+    }
+  }
+  function removeDraftPhoto(id) {
+    if (processingPhotos || savingTask) return
+    const photo = draftPhotos.find(item => item.id === id)
+    if (photo) URL.revokeObjectURL(photo.url)
+    draftPhotos = draftPhotos.filter(item => item.id !== id)
+    renderDraftPhotos()
+  }
+  function clearTaskDraft() {
+    draftPhotos.forEach(photo => URL.revokeObjectURL(photo.url))
+    draftPhotos = []
+    taskDraft = { title: '', subject: '', reward: '10' }
+  }
+  function renderTaskPhotos(task) {
+    if (!task.photos.length) return ''
+    return `<div class="task-photos"><span class="task-photos-label">作业参考照片 · 点击放大</span><div class="task-photo-grid">${task.photos.map((photo, index) => `<button type="button" class="task-photo-thumb" data-action="preview-task-photo" data-task-id="${escapeHtml(task.id)}" data-id="${escapeHtml(photo.id)}" aria-label="放大「${escapeHtml(task.title)}」的作业照片 ${index + 1}"><img data-photo-id="${escapeHtml(photo.id)}" alt="${escapeHtml(task.title)}的作业照片 ${index + 1}" loading="lazy"><span class="photo-placeholder">照片加载中</span><span class="photo-enlarge-mark">⤢</span></button>`).join('')}</div></div>`
+  }
+  function hydratePhotoThumbnails() {
+    document.querySelectorAll('img[data-photo-id]').forEach(async image => {
+      try {
+        const url = await photoUrl(image.dataset.photoId)
+        if (!image.isConnected) return
+        if (!url) throw new Error('missing')
+        image.src = url
+        image.parentElement.classList.add('photo-ready')
+      } catch (_) {
+        if (image.isConnected) image.parentElement.querySelector('.photo-placeholder').textContent = '本机未找到照片'
+      }
+    })
+  }
+  async function openPhotoViewer(photos, id, opener) {
+    if (!photos.length) return
+    viewerPhotos = photos
+    viewerIndex = Math.max(0, photos.findIndex(photo => photo.id === id))
+    viewerOpener = opener
+    photoViewer.showModal()
+    document.body.classList.add('viewing-photo')
+    await showViewerPhoto()
+  }
+  async function showViewerPhoto() {
+    const request = ++viewerRequest
+    const photo = viewerPhotos[viewerIndex]
+    viewerZoom = 1
+    viewerImage.hidden = true
+    document.querySelector('#viewer-zoom-label').textContent = '100%'
+    document.querySelector('[data-action="zoom-out"]').disabled = true
+    document.querySelector('[data-action="zoom-in"]').disabled = true
+    document.querySelector('#viewer-status').textContent = '正在打开照片…'
+    document.querySelector('#viewer-caption').textContent = `作业照片 ${viewerIndex + 1} / ${viewerPhotos.length}`
+    document.querySelector('[data-action="previous-photo"]').disabled = viewerIndex === 0
+    document.querySelector('[data-action="next-photo"]').disabled = viewerIndex === viewerPhotos.length - 1
+    try {
+      const url = photo.url || await photoUrl(photo.id)
+      if (!url) throw new Error('missing')
+      if (request !== viewerRequest || !photoViewer.open) return
+      viewerImage.src = url
+      viewerImage.alt = photo.name || '作业照片'
+      await viewerImage.decode()
+      if (request !== viewerRequest || !photoViewer.open) return
+      viewerImage.hidden = false
+      document.querySelector('#viewer-status').textContent = ''
+      resizeViewerPhoto()
+    } catch (_) {
+      if (request === viewerRequest) document.querySelector('#viewer-status').textContent = '本机未找到这张照片，请从包含照片的备份恢复。'
+    }
+  }
+  function resizeViewerPhoto() {
+    if (viewerImage.hidden || !viewerImage.naturalWidth) return
+    const fit = Math.min(1, (viewerStage.clientWidth - 32) / viewerImage.naturalWidth, (viewerStage.clientHeight - 32) / viewerImage.naturalHeight)
+    viewerImage.style.width = `${Math.max(1, viewerImage.naturalWidth * fit * viewerZoom)}px`
+    document.querySelector('#viewer-zoom-label').textContent = `${Math.round(viewerZoom * 100)}%`
+    document.querySelector('[data-action="zoom-out"]').disabled = viewerZoom <= 1
+    document.querySelector('[data-action="zoom-in"]').disabled = viewerZoom >= 4
+  }
+  function zoomViewer(change) {
+    viewerZoom = Math.max(1, Math.min(4, viewerZoom + change))
+    resizeViewerPhoto()
+  }
   function nowStamp() {
     return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()).replace(' ', ' ')
   }
@@ -94,6 +292,8 @@
     updateNav()
     const views = { home: renderHome, tasks: renderTasks, pets: renderPets, shop: renderShop }
     main.innerHTML = (views[currentView] || renderHome)()
+    if (currentView === 'tasks') renderDraftPhotos()
+    hydratePhotoThumbnails()
   }
 
   function renderHeading(eyebrow, title, subtitle, side = '') {
@@ -101,7 +301,7 @@
   }
   function renderTaskPreview(task) {
     const checked = task.completed ? 'checked' : ''
-    return `<div class="task-preview"><span class="task-check ${checked}">${task.completed ? '✓' : ''}</span><div class="task-preview-copy"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · ${task.completed ? '已经完成' : '等待打卡'}</small></div><span class="reward-mini">${task.completed ? '✓ ' : '✦ '}${task.reward}分</span></div>`
+    return `<div class="task-preview"><span class="task-check ${checked}">${task.completed ? '✓' : ''}</span><div class="task-preview-copy"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · ${task.completed ? '已经完成' : '等待打卡'}</small></div>${task.photos.length ? `<button class="task-photo-thumb preview-photo-button" data-action="preview-task-photo" data-task-id="${escapeHtml(task.id)}" data-id="${escapeHtml(task.photos[0].id)}" aria-label="查看「${escapeHtml(task.title)}」的作业照片"><img data-photo-id="${escapeHtml(task.photos[0].id)}" alt="作业照片"><span class="photo-placeholder">📷</span></button>` : ''}<span class="reward-mini">${task.completed ? '✓ ' : '✦ '}${task.reward}分</span></div>`
   }
   function renderActivity(limit = 5) {
     if (!state.activityLog.length) return `<div class="empty-state"><span class="empty-icon">✨</span><strong>故事从第一次努力开始</strong><p>完成作业或照顾小伙伴后，记录会出现在这里。</p></div>`
@@ -131,11 +331,19 @@
       <section class="panel activity-panel"><div class="section-title"><h2>最近的小故事</h2><span class="section-note">每一次努力都有记录</span></div>${renderActivity(4)}</section>`
   }
 
+  function renderTaskCard(task) {
+    return `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}">完成打卡 +${task.reward}</button>`}</div>${renderTaskPhotos(task)}<div class="task-card-actions"><span class="task-completed-at">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : '完成后点击打卡即可领取积分'}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`
+  }
   function renderTasks() {
-    const tasks = state.tasks.map(task => `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}">完成打卡 +${task.reward}</button>`}</div><div class="task-card-actions"><span class="task-completed-at">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : '完成后点击打卡即可领取积分'}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`).join('')
+    const tasks = state.tasks.map(renderTaskCard).join('')
     return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '写下今天要完成的作业，完成后点一下打卡，就能领取积分。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)}
-      <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排一项新作业</strong></div><form id="task-form" class="task-form"><label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" required></label><label><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="20" placeholder="例如：数学"></label><label class="reward-field"><span class="field-label">完成奖励（积分）</span><input class="text-input reward-input" name="reward" type="number" min="1" max="9007199254740991" step="1" value="10" inputmode="numeric" required></label><div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>
-      <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>添加一项作业，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>这是给家人使用的本地网页。打卡不需要上传照片，记录只保存在当前浏览器。</div></div></section>`
+      <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排一项新作业</strong></div><form id="task-form" class="task-form">
+        <label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" value="${escapeHtml(taskDraft.title)}" required></label>
+        <label class="form-subject-field"><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="20" placeholder="例如：数学" value="${escapeHtml(taskDraft.subject)}"></label>
+        <label class="reward-field"><span class="field-label">完成奖励（积分）</span><input class="text-input reward-input" name="reward" type="number" min="1" max="9007199254740991" step="1" value="${escapeHtml(taskDraft.reward)}" inputmode="numeric" required></label>
+        <div class="task-photo-field"><span class="field-label">作业照片（选填）</span><div class="photo-upload-actions"><button type="button" class="outline-button" data-action="take-task-photo">📷 拍照</button><button type="button" class="outline-button" data-action="choose-task-photos">▧ 从相册选择</button></div><div id="draft-photos" class="draft-photo-grid"></div><p id="photo-selection-status" class="photo-selection-status" role="status"></p><span class="photo-local-note">照片只保存在这个浏览器，添加到作业后也可以点开放大。</span></div>
+        <div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>
+      <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>布置作业时可附上照片，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>`
   }
 
   function renderPets() {
@@ -149,21 +357,49 @@
   }
 
   function commit(message) {
-    saveState()
+    if (!saveState()) {
+      state = loadState()
+      render()
+      return false
+    }
     render()
     if (message) showToast(message)
+    return true
   }
 
-  function addTask(form) {
+  async function addTask(form) {
+    if (savingTask || processingPhotos) return
     const data = new FormData(form)
     const title = String(data.get('title') || '').trim()
     if (!title) return showToast('先写下作业内容哦')
     const reward = Number(data.get('reward'))
     if (!isValidReward(reward)) return showToast('奖励积分请填写有效的正整数')
-    state.tasks.unshift({ id: makeId(), title, subject: String(data.get('subject') || '').trim(), reward, completed: false, completedAt: '', icon: '📚' })
-    addLog(`添加了作业「${title}」`)
-    form.reset()
-    commit('作业添加成功')
+    savingTask = true
+    renderDraftPhotos()
+    const photos = [...draftPhotos]
+    let previousState
+    try {
+      await writePhotoRecords(photos)
+      previousState = structuredClone(state)
+      state.tasks.unshift({ id: makeId(), title, subject: String(data.get('subject') || '').trim(), reward, completed: false, completedAt: '', icon: '📚', photos: photos.map(photo => ({ id: photo.id, name: photo.name })) })
+      addLog(`添加了作业「${title}」${photos.length ? `，附 ${photos.length} 张照片` : ''}`)
+      if (!saveState()) {
+        state = previousState
+        await writePhotoRecords([], photos.map(photo => photo.id)).catch(() => {})
+        return
+      }
+      photos.forEach(photo => photoUrls.set(photo.id, photo.url))
+      draftPhotos = []
+      taskDraft = { title: '', subject: '', reward: '10' }
+      render()
+      showToast('作业添加成功')
+    } catch (_) {
+      if (previousState) state = previousState
+      showToast('照片保存失败，请检查浏览器存储空间后重试')
+    } finally {
+      savingTask = false
+      renderDraftPhotos()
+    }
   }
   function completeTask(id) {
     const task = state.tasks.find(item => item.id === id)
@@ -174,12 +410,17 @@
     addLog(`完成「${task.title}」，获得 ${task.reward} 积分`)
     commit(`真棒！获得 ${task.reward} 积分`)
   }
-  function deleteTask(id) {
+  async function deleteTask(id) {
     const task = state.tasks.find(item => item.id === id)
     if (!task || task.completed) return
     if (!window.confirm(`确定移除“${task.title}”吗？`)) return
     state.tasks = state.tasks.filter(item => item.id !== id)
-    commit('任务已移除')
+    if (commit('任务已移除')) {
+      const keepIds = new Set(referencedPhotoIds())
+      const removeIds = task.photos.map(photo => photo.id).filter(photoId => !keepIds.has(photoId))
+      await writePhotoRecords([], removeIds).catch(() => {})
+      removeIds.forEach(photoId => { if (photoUrls.has(photoId)) URL.revokeObjectURL(photoUrls.get(photoId)); photoUrls.delete(photoId) })
+    }
   }
   function adoptPet(productId) {
     const product = CATALOG.find(item => item.id === productId)
@@ -219,55 +460,120 @@
     addLog(`带${pet.name}去了${outing}，花费 ${cost} 积分`)
     commit(`${pet.name}玩得很开心！`)
   }
-  function exportBackup() {
-    const blob = new Blob([JSON.stringify({ format: 'homework-pet-web', version: 1, exportedAt: new Date().toISOString(), data: state }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `作业小宠物备份-${new Date().toISOString().slice(0, 10)}.json`
-    document.body.append(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-    showToast('备份文件已下载')
+  function blobDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(blob)
+    })
   }
-  function importBackup(file) {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result || ''))
-        const backup = parsed?.data && typeof parsed.data === 'object' ? parsed.data : parsed
-        if (!backup || !Array.isArray(backup.tasks) || !Array.isArray(backup.pets) || !Number.isFinite(Number(backup.points))) throw new Error('invalid')
-        if (!window.confirm('导入会替换此浏览器里的当前数据，确定继续吗？')) return
-        state = normalizeImportedState(backup)
-        commit('备份恢复成功')
-      } catch (_) {
-        showToast('文件格式不正确，无法恢复')
-      } finally {
-        importFile.value = ''
-      }
-    }
-    reader.onerror = () => showToast('读取文件失败，请重试')
-    reader.readAsText(file)
+  function dataUrlBlob(value) {
+    if (typeof value !== 'string' || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=\s]+$/.test(value)) throw new Error('无效的备份照片')
+    const [header, encoded] = value.split(',')
+    const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0))
+    return new Blob([bytes], { type: header.slice(5, header.indexOf(';')) })
   }
-  function normalizeImportedState(source) {
+  async function exportBackup() {
+    if (backupBusy || savingTask) return
+    backupBusy = true
+    const button = document.querySelector('[data-action="export"]')
+    button.disabled = true
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(source))
-      return loadState()
+      const snapshot = structuredClone(state)
+      const photos = []
+      let missing = 0
+      for (const id of referencedPhotoIds(snapshot)) {
+        const record = await readPhoto(id).catch(() => null)
+        if (!record?.blob) { missing += 1; continue }
+        photos.push({ id, name: record.name, dataUrl: await blobDataUrl(record.blob) })
+      }
+      const blob = new Blob([JSON.stringify({ format: 'homework-pet-web', version: 2, exportedAt: new Date().toISOString(), data: snapshot, photos }, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `作业小宠物备份-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.append(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      showToast(missing ? `备份已下载，另有 ${missing} 张照片在本机未找到` : '备份已下载，包含作业照片')
     } catch (_) {
-      return emptyState()
+      showToast('备份失败，请检查浏览器存储权限后重试')
+    } finally {
+      backupBusy = false
+      button.disabled = false
     }
   }
-  function resetData() {
-    if (!window.confirm('清空后，这台浏览器里的任务、积分和宠物记录都会删除。建议先下载备份。确定清空吗？')) return
+  async function importBackup(file) {
+    if (!file || backupBusy || processingPhotos || savingTask) return
+    backupBusy = true
+    let newPhotos = []
+    let previousState
+    try {
+      const parsed = JSON.parse(await file.text())
+      const backup = parsed?.data && typeof parsed.data === 'object' ? parsed.data : parsed
+      if (!backup || !Array.isArray(backup.tasks) || !Array.isArray(backup.pets) || !Number.isFinite(Number(backup.points))) throw new Error('invalid')
+      const nextState = normalizeState(backup)
+      const attachments = new Map((Array.isArray(parsed.photos) ? parsed.photos : []).filter(photo => photo && typeof photo.id === 'string').map(photo => [photo.id, photo]))
+      const replacementIds = new Map()
+      let missing = 0
+      for (const id of referencedPhotoIds(nextState)) {
+        const attachment = attachments.get(id)
+        const record = attachment ? { blob: dataUrlBlob(attachment.dataUrl), name: attachment.name } : await readPhoto(id).catch(() => null)
+        if (!record?.blob) { missing += 1; continue }
+        const newId = makeId()
+        replacementIds.set(id, newId)
+        newPhotos.push({ id: newId, blob: record.blob, name: String(record.name || '作业照片').slice(0, 100) })
+      }
+      nextState.tasks.forEach(task => { task.photos = task.photos.filter(photo => replacementIds.has(photo.id)).map(photo => ({ ...photo, id: replacementIds.get(photo.id) })) })
+      if (!window.confirm(`导入会替换此浏览器里的当前数据。${missing ? `备份中缺少 ${missing} 张照片，这些照片无法恢复。` : ''}确定继续吗？`)) return
+      await writePhotoRecords(newPhotos)
+      previousState = state
+      state = nextState
+      if (!saveState()) {
+        state = previousState
+        await writePhotoRecords([], newPhotos.map(photo => photo.id)).catch(() => {})
+        return
+      }
+      await writePhotoRecords([], referencedPhotoIds(previousState)).catch(() => {})
+      releasePhotoUrls()
+      clearTaskDraft()
+      render()
+      showToast(missing ? '记录已恢复，部分照片在备份中缺失' : '备份恢复成功，作业照片已恢复')
+    } catch (_) {
+      if (previousState) state = previousState
+      if (newPhotos.length) await writePhotoRecords([], newPhotos.map(photo => photo.id)).catch(() => {})
+      showToast('备份无法恢复，请检查文件格式和浏览器存储空间')
+    } finally {
+      backupBusy = false
+      importFile.value = ''
+    }
+  }
+  async function resetData() {
+    if (savingTask || processingPhotos || backupBusy) return
+    if (!window.confirm('清空后，这台浏览器里的任务、作业照片、积分和宠物记录都会删除。建议先下载备份。确定清空吗？')) return
+    const previousState = state
     state = emptyState()
-    saveState()
+    if (!saveState()) { state = previousState; return }
+    try {
+      const db = await openPhotoDb()
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction('photos', 'readwrite')
+        transaction.objectStore('photos').clear()
+        transaction.oncomplete = resolve
+        transaction.onerror = () => reject(transaction.error)
+        transaction.onabort = () => reject(transaction.error || new Error('照片清理中断'))
+      })
+    } catch (_) { /* 文字记录已保存；照片存储可能被浏览器禁用。 */ }
+    releasePhotoUrls()
+    clearTaskDraft()
     render()
     showToast('本机数据已清空')
   }
 
-  document.addEventListener('click', event => {
+  document.addEventListener('click', async event => {
+    if (event.target === photoViewer) { photoViewer.close(); return }
     const viewButton = event.target.closest('[data-view]')
     if (viewButton) {
       event.preventDefault()
@@ -289,13 +595,45 @@
     if (action === 'export') exportBackup()
     if (action === 'import') importFile.click()
     if (action === 'reset') resetData()
+    if (action === 'take-task-photo') cameraInput.click()
+    if (action === 'choose-task-photos') photoInput.click()
+    if (action === 'remove-draft-photo') removeDraftPhoto(button.dataset.id)
+    if (action === 'preview-draft-photo') await openPhotoViewer(draftPhotos, button.dataset.id, button)
+    if (action === 'preview-task-photo') {
+      const task = state.tasks.find(item => item.id === button.dataset.taskId)
+      if (task) await openPhotoViewer(task.photos, button.dataset.id, button)
+    }
+    if (action === 'close-photo-viewer') photoViewer.close()
+    if (action === 'previous-photo' && viewerIndex > 0) { viewerIndex -= 1; await showViewerPhoto() }
+    if (action === 'next-photo' && viewerIndex < viewerPhotos.length - 1) { viewerIndex += 1; await showViewerPhoto() }
+    if (action === 'zoom-in') zoomViewer(.5)
+    if (action === 'zoom-out') zoomViewer(-.5)
+    if (action === 'fit-photo') { viewerZoom = 1; resizeViewerPhoto(); viewerStage.scrollTo(0, 0) }
+    if (action === 'toggle-photo-zoom') { viewerZoom = viewerZoom === 1 ? 2 : 1; resizeViewerPhoto() }
   })
   document.addEventListener('submit', event => {
     if (event.target.id !== 'task-form') return
     event.preventDefault()
     addTask(event.target)
   })
+  document.addEventListener('input', event => {
+    if (event.target.closest('#task-form') && ['title', 'subject', 'reward'].includes(event.target.name)) taskDraft[event.target.name] = event.target.value
+  })
   importFile.addEventListener('change', event => importBackup(event.target.files?.[0]))
+  cameraInput.addEventListener('change', event => addDraftPhotos(event.target.files))
+  photoInput.addEventListener('change', event => addDraftPhotos(event.target.files))
+  photoViewer.addEventListener('close', () => {
+    viewerRequest += 1
+    viewerImage.removeAttribute('src')
+    viewerPhotos = []
+    document.body.classList.remove('viewing-photo')
+    if (viewerOpener?.isConnected) viewerOpener.focus()
+  })
+  photoViewer.addEventListener('keydown', event => {
+    if (event.key === 'ArrowLeft' && viewerIndex > 0) { event.preventDefault(); viewerIndex -= 1; showViewerPhoto() }
+    if (event.key === 'ArrowRight' && viewerIndex < viewerPhotos.length - 1) { event.preventDefault(); viewerIndex += 1; showViewerPhoto() }
+  })
+  window.addEventListener('resize', () => { if (photoViewer.open) resizeViewerPhoto() })
   window.addEventListener('storage', event => {
     if (event.key === STORAGE_KEY) {
       state = loadState()

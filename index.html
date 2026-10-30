@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#f8f7f1">
     <meta name="description" content="完成作业打卡，收集积分，照顾自己的小宠物。">
     <title>作业小宠物</title>
-    <link rel="stylesheet" href="./styles.css?v=20261030-custom-points">
-    <script src="./app.js?v=20261030-custom-points" defer></script>
+    <link rel="stylesheet" href="./styles.css?v=20261030-task-photos">
+    <script src="./app.js?v=20261030-task-photos" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -48,5 +48,14 @@
       <button class="mobile-nav-link" data-view="shop"><span>✿</span><small>小铺</small></button>
     </nav>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <input id="task-camera-input" type="file" accept="image/*" capture="environment" hidden>
+    <input id="task-photo-input" type="file" accept="image/*" multiple hidden>
+    <dialog id="photo-viewer" class="photo-viewer" aria-labelledby="viewer-caption">
+      <div class="photo-viewer-shell">
+        <header class="photo-viewer-header"><strong id="viewer-caption">作业照片</strong><button type="button" class="viewer-button viewer-close" data-action="close-photo-viewer" aria-label="关闭照片预览">×</button></header>
+        <div id="viewer-stage" class="photo-viewer-stage"><div class="photo-viewer-canvas"><img id="viewer-image" class="photo-viewer-image" alt="作业照片" data-action="toggle-photo-zoom" hidden></div><p id="viewer-status" class="viewer-status" role="status"></p></div>
+        <footer class="photo-viewer-controls"><button type="button" class="viewer-button" data-action="previous-photo" aria-label="上一张照片">‹</button><button type="button" class="viewer-button" data-action="zoom-out" aria-label="缩小照片">−</button><span id="viewer-zoom-label">100%</span><button type="button" class="viewer-button" data-action="zoom-in" aria-label="放大照片">＋</button><button type="button" class="viewer-button viewer-fit" data-action="fit-photo">适应屏幕</button><button type="button" class="viewer-button" data-action="next-photo" aria-label="下一张照片">›</button></footer>
+      </div>
+    </dialog>
   </body>
 </html>
