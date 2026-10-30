@@ -13,7 +13,6 @@
   const toast = document.querySelector('#toast')
   const importFile = document.querySelector('#import-file')
   let currentView = 'home'
-  let selectedReward = 10
   let toastTimer = 0
 
   const emptyState = () => ({ points: 0, tasks: [], pets: [], food: 0, activityLog: [] })
@@ -27,7 +26,7 @@
         points: nonNegativeInt(saved.points),
         tasks: Array.isArray(saved.tasks) ? saved.tasks.filter(item => item && typeof item.title === 'string').map(item => ({
           id: String(item.id || makeId()), title: item.title.slice(0, 60), subject: typeof item.subject === 'string' ? item.subject.slice(0, 30) : '',
-          reward: [5, 10, 15].includes(Number(item.reward)) ? Number(item.reward) : 10, completed: Boolean(item.completed), completedAt: String(item.completedAt || ''), icon: '📚'
+          reward: isValidReward(item.reward) ? Number(item.reward) : 10, completed: Boolean(item.completed), completedAt: String(item.completedAt || ''), icon: '📚'
         })) : [],
         pets: Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(item => ({
           id: String(item.id || makeId()), species: String(item.species || '宠物'), name: item.name.slice(0, 20), emoji: String(item.emoji || '🐾'),
@@ -55,6 +54,10 @@
   function nonNegativeInt(value) {
     const number = Number(value)
     return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : 0
+  }
+  function isValidReward(value) {
+    const number = Number(value)
+    return Number.isSafeInteger(number) && number > 0
   }
   function clamp(value, min, max, fallback) {
     const number = Number(value)
@@ -91,7 +94,6 @@
     updateNav()
     const views = { home: renderHome, tasks: renderTasks, pets: renderPets, shop: renderShop }
     main.innerHTML = (views[currentView] || renderHome)()
-    if (currentView === 'tasks') updateRewardButtons()
   }
 
   function renderHeading(eyebrow, title, subtitle, side = '') {
@@ -132,7 +134,7 @@
   function renderTasks() {
     const tasks = state.tasks.map(task => `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}">完成打卡 +${task.reward}</button>`}</div><div class="task-card-actions"><span class="task-completed-at">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : '完成后点击打卡即可领取积分'}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`).join('')
     return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '写下今天要完成的作业，完成后点一下打卡，就能领取积分。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)}
-      <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排一项新作业</strong></div><form id="task-form" class="task-form"><label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" required></label><label><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="20" placeholder="例如：数学"></label><div class="reward-field"><span class="field-label">完成奖励</span><div class="reward-picker"><button type="button" class="reward-option" data-action="choose-reward" data-reward="5">5 分</button><button type="button" class="reward-option selected" data-action="choose-reward" data-reward="10">10 分</button><button type="button" class="reward-option" data-action="choose-reward" data-reward="15">15 分</button></div></div><div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>
+      <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排一项新作业</strong></div><form id="task-form" class="task-form"><label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" required></label><label><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="20" placeholder="例如：数学"></label><label class="reward-field"><span class="field-label">完成奖励（积分）</span><input class="text-input reward-input" name="reward" type="number" min="1" max="9007199254740991" step="1" value="10" inputmode="numeric" required></label><div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>
       <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>添加一项作业，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>这是给家人使用的本地网页。打卡不需要上传照片，记录只保存在当前浏览器。</div></div></section>`
   }
 
@@ -146,9 +148,6 @@
     return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备好吃的。')}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section><p class="shop-footnote">积分来自完成作业打卡。宠物和饲料都是网页里的虚拟物品 🐾</p>`
   }
 
-  function updateRewardButtons() {
-    document.querySelectorAll('.reward-option').forEach(button => button.classList.toggle('selected', Number(button.dataset.reward) === selectedReward))
-  }
   function commit(message) {
     saveState()
     render()
@@ -159,10 +158,11 @@
     const data = new FormData(form)
     const title = String(data.get('title') || '').trim()
     if (!title) return showToast('先写下作业内容哦')
-    state.tasks.unshift({ id: makeId(), title, subject: String(data.get('subject') || '').trim(), reward: selectedReward, completed: false, completedAt: '', icon: '📚' })
+    const reward = Number(data.get('reward'))
+    if (!isValidReward(reward)) return showToast('奖励积分请填写有效的正整数')
+    state.tasks.unshift({ id: makeId(), title, subject: String(data.get('subject') || '').trim(), reward, completed: false, completedAt: '', icon: '📚' })
     addLog(`添加了作业「${title}」`)
     form.reset()
-    selectedReward = 10
     commit('作业添加成功')
   }
   function completeTask(id) {
@@ -280,7 +280,6 @@
     const button = event.target.closest('[data-action]')
     if (!button) return
     const action = button.dataset.action
-    if (action === 'choose-reward') { selectedReward = Number(button.dataset.reward); updateRewardButtons() }
     if (action === 'complete-task') completeTask(button.dataset.id)
     if (action === 'delete-task') deleteTask(button.dataset.id)
     if (action === 'adopt') adoptPet(button.dataset.id)
