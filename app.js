@@ -339,14 +339,14 @@
   }
   function renderTasks() {
     const tasks = state.tasks.map(renderTaskCard).join('')
-    return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '写下今天要完成的作业，完成后点一下打卡，就能领取积分。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)}
+    return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '完成作业后点一下打卡，就能领取积分。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)}
+      <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>在下方添加作业，可附上参考照片，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>
       <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排一项新作业</strong></div><form id="task-form" class="task-form">
         <label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" value="${escapeHtml(taskDraft.title)}" required></label>
         <label class="form-subject-field"><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="20" placeholder="例如：数学" value="${escapeHtml(taskDraft.subject)}"></label>
         <label class="reward-field"><span class="field-label">完成奖励（积分）</span><input class="text-input reward-input" name="reward" type="number" min="1" max="9007199254740991" step="1" value="${escapeHtml(taskDraft.reward)}" inputmode="numeric" required></label>
         <div class="task-photo-field"><span class="field-label">作业照片（选填）</span><div class="photo-upload-actions"><button type="button" class="outline-button" data-action="take-task-photo">📷 拍照</button><button type="button" class="outline-button" data-action="choose-task-photos">▧ 从相册选择</button></div><div id="draft-photos" class="draft-photo-grid"></div><p id="photo-selection-status" class="photo-selection-status" role="status"></p><span class="photo-local-note">照片只保存在这个浏览器，添加到作业后也可以点开放大。</span></div>
-        <div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>
-      <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>布置作业时可附上照片，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>`
+        <div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>`
   }
 
   function petKind(pet) {

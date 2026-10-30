@@ -184,11 +184,11 @@ h1 { margin-bottom: 7px; color: var(--ink); font-size: clamp(25px, 3vw, 33px); l
 .photo-viewer-controls { display: flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 10px; min-height: 58px; border-top: 1px solid #344439; padding: 10px; }
 .viewer-fit { min-width: 78px; font-size: 11px; }
 #viewer-zoom-label { min-width: 42px; font-size: 12px; text-align: center; }
-.task-add-panel { padding: 20px; }
+.task-add-panel { margin-top: 24px; padding: 20px; }
 .task-add-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
 .task-add-head span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; background: var(--orange-soft); color: var(--orange); font-size: 17px; }
 .task-add-head strong { font-size: 13px; }
-.task-list-section { margin-top: 25px; }
+.task-list-section { margin-top: 0; }
 .task-list { display: grid; gap: 11px; }
 .task-card { padding: 17px 18px; }
 .task-card-main { display: flex; align-items: center; gap: 12px; }
