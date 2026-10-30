@@ -32,6 +32,9 @@
   let viewerOpener = null
   let currentView = 'home'
   let toastTimer = 0
+  let activePetId = ''
+  let petAnimation = null
+  let petAnimationTimer = 0
 
   const emptyState = () => ({ points: 0, tasks: [], pets: [], food: 0, activityLog: [] })
   const makeId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`)
@@ -346,9 +349,129 @@
       <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>布置作业时可附上照片，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>`
   }
 
+  function petKind(pet) {
+    if (pet.species.includes('猫')) return 'cat'
+    if (pet.species.includes('兔')) return 'rabbit'
+    return 'dog'
+  }
+  function renderRoomArtwork() {
+    return `<svg class="room-artwork" viewBox="0 0 720 650" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <rect width="720" height="650" fill="#fff1db"/>
+      <path d="M0 60H720M0 148H720M0 236H720M0 324H720" stroke="#f8e9d0" stroke-width="2"/>
+      <path d="M0 415H720V650H0Z" fill="#e9c5a3"/>
+      <path d="M0 415H720" stroke="#b58a68" stroke-width="8"/>
+      <g stroke="#cfaa88" stroke-width="2.5" fill="none"><path d="M0 456H720M0 502H720M0 548H720M0 595H720M0 642H720"/><path d="M168 416V456M485 416V456M60 456V502M370 456V502M650 456V502M220 502V548M535 502V548M96 548V595M405 548V595M680 548V595M250 595V642M560 595V642"/></g>
+      <g stroke="#a48160" stroke-width="5" stroke-linejoin="round">
+        <rect x="467" y="100" width="157" height="173" rx="7" fill="#d4ac7f"/>
+        <rect x="478" y="111" width="135" height="151" rx="2" fill="#c3e4e7" stroke-width="3"/>
+        <g stroke="none"><circle cx="579" cy="143" r="21" fill="#ffe7a3"/><g class="room-cloud"><path d="M486 177Q484 160 497 159Q505 142 519 156Q536 151 542 169L542 181H486" fill="#f9ffff"/><path d="M557 231Q557 215 569 216Q577 201 590 215Q607 213 610 232Z" fill="#f9ffff"/></g></g>
+        <path d="M546 111V262M478 188H613" fill="none" stroke-width="7"/>
+        <path d="M454 91H637" stroke="#9d795a" stroke-width="8" stroke-linecap="round"/>
+        <path d="M456 97H479L473 220L455 233Z" fill="#edccad" stroke-width="2.5"/><path d="M612 97H635V233L616 220Z" fill="#edccad" stroke-width="2.5"/>
+        <rect x="109" y="141" width="118" height="100" rx="4" fill="#d6ac7c"/><rect x="118" y="150" width="100" height="81" rx="2" fill="#fff9e9" stroke-width="2.5"/>
+        <g stroke-width="3"><circle cx="192" cy="171" r="11" fill="#efcd72" stroke="#d6b66d"/><path d="M123 225L152 179Q157 174 162 182L187 225Z" fill="#9bbc85" stroke="#7e9c6b"/><path d="M158 225L186 195Q190 191 194 197L215 225Z" fill="#b5c99c" stroke="#8ba17b"/></g>
+        <rect x="246" y="179" width="46" height="60" rx="3" fill="#e7bc93" stroke-width="4"/><rect x="253" y="186" width="32" height="46" rx="2" fill="#f3d2b6" stroke-width="2"/>
+        <g fill="#f8e9b5" stroke="none"><ellipse cx="269" cy="204" rx="4" ry="9"/><ellipse cx="269" cy="216" rx="4" ry="9"/><ellipse cx="263" cy="210" rx="9" ry="4"/><ellipse cx="275" cy="210" rx="9" ry="4"/><circle cx="269" cy="210" r="4" fill="#dca36f"/></g>
+        <ellipse cx="360" cy="445" rx="210" ry="19" fill="#c69b76" opacity=".22" stroke="none"/>
+        <path d="M173 431V450Q173 458 184 458Q194 458 194 450V432M526 431V450Q526 458 536 458Q546 458 546 450V431" fill="#b48764" stroke-width="4"/>
+        <rect x="168" y="300" width="385" height="136" rx="34" fill="#e7cf9f"/>
+        <path d="M180 365Q180 352 194 352H527Q541 352 541 367V422H180Z" fill="#edd9b4" stroke-width="3"/>
+        <path d="M301 363V423M420 363V423" fill="none" stroke="#ceb285" stroke-width="3"/>
+        <rect x="146" y="350" width="45" height="91" rx="20" fill="#e7cea3" stroke-width="4"/><rect x="530" y="350" width="45" height="91" rx="20" fill="#e7cea3" stroke-width="4"/>
+        <rect x="217" y="322" width="81" height="69" rx="10" transform="rotate(-8 257 356)" fill="#a6c8cf" stroke="#759aa8" stroke-width="3.5"/>
+        <rect x="316" y="319" width="78" height="70" rx="10" fill="#bad2d3" stroke="#85a7ac" stroke-width="3.5"/>
+        <rect x="417" y="323" width="79" height="69" rx="10" transform="rotate(8 456 357)" fill="#a6c8cf" stroke="#759aa8" stroke-width="3.5"/>
+        <path d="M593 389H655L649 431H599Z" fill="#c5a17c" stroke-width="4"/>
+        <rect x="588" y="381" width="72" height="13" rx="5" fill="#d9b48d" stroke-width="4"/>
+        <path d="M599 430L595 454M646 430L650 454" stroke-width="5"/>
+        <g stroke-width="2.5"><path d="M604 378V351H643V378" fill="#b0c4c5" stroke="#7d999c"/><path d="M612 350V337H649V350Z" fill="#e3b095" stroke="#b98d74"/><path d="M621 336V325H651V336Z" fill="#b1bf92" stroke="#91a06e"/></g>
+        <ellipse cx="359" cy="553" rx="181" ry="61" fill="#eedbb9" stroke="#d2ad88" stroke-width="3"/>
+        <ellipse cx="359" cy="553" rx="165" ry="49" fill="none" stroke="#d8bc96" stroke-width="2" stroke-dasharray="6 5"/>
+        <g class="room-plant" stroke="#7f9b68" stroke-width="3"><path d="M104 541V453" fill="none"/><path d="M103 505Q63 501 70 463Q104 467 103 505Z" fill="#93b57f"/><path d="M105 486Q137 487 140 452Q107 453 105 486Z" fill="#aac391"/><path d="M103 469Q83 449 94 422Q119 442 103 469Z" fill="#88aa76"/><path d="M81 530H128L122 576Q106 586 87 575Z" fill="#c8936a" stroke="#a37756" stroke-width="4"/><ellipse cx="104" cy="531" rx="25" ry="8" fill="#9b7456" stroke="#b68762"/></g>
+      </g>
+    </svg>`
+  }
+  function renderAnimatedAnimal(pet) {
+    const kind = petKind(pet)
+    const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
+    const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
+    const tail = kind === 'rabbit'
+      ? '<circle cx="233" cy="260" r="26" fill="#fff8eb"/>'
+      : kind === 'cat'
+        ? '<path d="M226 269C285 287 297 241 281 214C266 192 286 181 299 194" fill="none" stroke="#e5a86e" stroke-width="24"/><path d="M226 269C285 287 297 241 281 214C266 192 286 181 299 194" fill="none" stroke="#a6744d" stroke-width="3"/><path d="M278 250L292 245M274 221L288 216M283 188L287 202" stroke="#bd7d4d" stroke-width="7"/>'
+        : '<path d="M226 265Q296 256 280 209Q277 198 268 207Q266 233 233 235Z" fill="#b7804e"/>'
+    const ears = kind === 'rabbit'
+      ? '<g class="pet-ear pet-ear-left"><ellipse cx="125" cy="81" rx="24" ry="70" transform="rotate(-13 125 81)" fill="#fff7e8"/><ellipse cx="125" cy="75" rx="12" ry="48" transform="rotate(-13 125 75)" fill="#eab9af" stroke="none"/></g><g class="pet-ear pet-ear-right"><ellipse cx="211" cy="79" rx="24" ry="69" transform="rotate(13 211 79)" fill="#fff7e8"/><ellipse cx="211" cy="73" rx="12" ry="47" transform="rotate(13 211 73)" fill="#eab9af" stroke="none"/></g>'
+      : kind === 'cat'
+        ? '<g class="pet-ear pet-ear-left"><path d="M91 130L92 66Q94 56 105 64L146 96Z" fill="#e5a86e"/><path d="M104 112L104 80L130 100Z" fill="#eab4a3" stroke="none"/></g><g class="pet-ear pet-ear-right"><path d="M195 96L235 64Q245 56 248 67L249 132Z" fill="#e5a86e"/><path d="M210 100L236 80L237 113Z" fill="#eab4a3" stroke="none"/></g>'
+        : '<g class="pet-ear pet-ear-left"><path d="M112 100Q78 81 71 112L61 163Q61 193 84 195Q108 194 112 154Z" fill="#aa7147"/></g><g class="pet-ear pet-ear-right"><path d="M227 100Q261 82 268 112L279 162Q279 194 255 195Q233 194 227 153Z" fill="#aa7147"/></g>'
+    const head = kind === 'rabbit'
+      ? '<ellipse cx="170" cy="161" rx="82" ry="71" fill="#fff7e8"/>'
+      : kind === 'cat'
+        ? '<path d="M89 129Q97 91 168 91Q238 90 250 130Q272 173 235 204Q210 227 170 227Q127 228 99 204Q70 174 89 129Z" fill="#e5a86e"/><path d="M138 194Q145 167 170 170Q195 167 204 195Q200 219 170 219Q140 219 138 194Z" fill="#fff4df" stroke="none"/><path d="M155 97L161 115M171 95V118M186 98L181 115" stroke="#bc7d4c" stroke-width="7"/>'
+        : '<path d="M89 134Q92 95 128 91Q170 80 212 92Q249 96 252 135L252 176Q246 222 171 226Q97 223 89 179Z" fill="#edc48a"/><path d="M135 191Q139 161 170 165Q202 162 206 190Q202 216 171 217Q139 217 135 191Z" fill="#fff4df" stroke="none"/><path d="M174 91Q204 87 222 102Q243 120 233 143Q214 153 204 130Q196 113 179 111Z" fill="#d6a36c" stroke="none"/>'
+    const whiskers = kind === 'cat' ? '<g stroke="#9e704f" stroke-width="2.5"><path d="M104 175L73 168M105 185L73 189M234 175L265 167M234 185L265 189"/></g>' : ''
+    return `<svg class="pet-character pet-character-${kind}" viewBox="0 0 340 340" role="img" aria-label="${escapeHtml(pet.name)}的动态${escapeHtml(pet.species)}形象">
+      <g stroke="#825e45" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <g class="pet-tail">${tail}</g>
+        <g class="pet-body"><ellipse cx="170" cy="247" rx="70" ry="64" fill="${fur}"/><ellipse cx="170" cy="259" rx="37" ry="43" fill="${belly}" stroke="none"/><ellipse cx="120" cy="293" rx="30" ry="16" fill="${fur}"/><ellipse cx="222" cy="293" rx="30" ry="16" fill="${fur}"/><path d="M132 240L128 283Q128 302 145 303Q160 302 160 285L159 249" fill="${belly}"/><path d="M182 249L181 285Q180 302 197 303Q213 301 211 284L207 241" fill="${belly}"/><path d="M138 291V298M149 291V298M190 291V298M201 291V298" stroke="#c5a78b" stroke-width="2"/></g>
+        <g class="pet-head">${ears}${head}
+          <g class="pet-eyes"><ellipse cx="136" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><ellipse cx="204" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><circle cx="138" cy="150" r="2.7" fill="#fff" stroke="none"/><circle cx="206" cy="150" r="2.7" fill="#fff" stroke="none"/></g>
+          <g class="pet-eating-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M127 155Q136 147 145 155M195 155Q204 147 213 155"/></g>
+          <ellipse cx="117" cy="176" rx="12" ry="7" fill="#e8a08c" opacity=".6" stroke="none"/><ellipse cx="224" cy="176" rx="12" ry="7" fill="#e8a08c" opacity=".6" stroke="none"/>
+          <path d="M161 171Q170 166 179 171Q180 179 170 183Q160 178 161 171Z" fill="${kind === 'dog' ? '#604333' : '#cf8c83'}" stroke="none"/>
+          <g class="pet-mouth-idle"><path d="M170 183V188Q160 199 152 190M170 188Q180 199 188 190" fill="none" stroke-width="3"/>${kind === 'dog' ? '<path d="M166 195V203Q170 210 176 203V195" fill="#de9995" stroke="#b97d78" stroke-width="2"/>' : ''}</g>
+          <g class="pet-mouth-chew"><ellipse cx="170" cy="191" rx="9" ry="6" fill="#a36950" stroke-width="2"/>${kind === 'rabbit' ? '<path d="M166 186H174V194H166Z" fill="#fff" stroke="none"/>' : ''}</g>${whiskers}
+        </g>
+      </g>
+    </svg>`
+  }
+  function renderFoodBowl() {
+    return `<svg viewBox="0 0 150 80" aria-hidden="true"><ellipse cx="75" cy="68" rx="57" ry="8" fill="#a78366" opacity=".2"/><g class="bowl-kibbles" fill="#bb8050" stroke="#93633e" stroke-width="2"><circle cx="43" cy="30" r="8"/><circle cx="60" cy="23" r="8"/><circle cx="77" cy="27" r="9"/><circle cx="95" cy="23" r="8"/><circle cx="110" cy="31" r="8"/><circle cx="59" cy="35" r="8"/><circle cx="89" cy="35" r="9"/></g><path d="M24 32H126L115 61Q75 76 35 61Z" fill="#a8c5b0" stroke="#779883" stroke-width="4"/><ellipse cx="75" cy="32" rx="51" ry="9" fill="none" stroke="#779883" stroke-width="4"/><path d="M69 48Q66 43 62 46Q60 51 69 56Q80 50 77 46Q73 43 69 48Z" fill="#f3edce" stroke="none"/></svg>`
+  }
   function renderPets() {
-    const pets = state.pets.map(pet => `<article class="panel pet-card"><div class="pet-card-top"><span class="pet-avatar">${escapeHtml(pet.emoji)}</span><div class="pet-name-area"><div class="pet-name-line"><strong>${escapeHtml(pet.name)}</strong><span class="species-label">${escapeHtml(pet.species)}</span></div><p class="pet-mood">${petMood(pet)}</p><p class="pet-bond">一起玩过 ${pet.playCount} 次</p></div></div><div class="meter-row"><div class="meter-top"><span>🍚 饱饱度</span><strong>${pet.satiety}%</strong></div><div class="meter-track"><div class="meter-fill" style="width:${pet.satiety}%"></div></div></div><div class="meter-row"><div class="meter-top"><span>💛 开心度</span><strong>${pet.happiness}%</strong></div><div class="meter-track"><div class="meter-fill happy" style="width:${pet.happiness}%"></div></div></div><div class="pet-actions">${state.food > 0 ? `<button class="secondary-button button-small" data-action="feed-pet" data-id="${escapeHtml(pet.id)}">🍪 喂一份（${state.food}）</button>` : `<button class="outline-button button-small" data-view="shop">🍪 去买饲料</button>`}<button class="outline-button play-button button-small" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-cost="10" data-outing="公园散步">🌳 公园 · 10 分</button><button class="outline-button play-button button-small" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-cost="20" data-outing="宠物乐园">🎠 乐园 · 20 分</button></div></article>`).join('')
-    return `${renderHeading('照顾它们，也是在练习爱与责任', '我的小伙伴', '喂喂它、陪它玩，它会越来越开心。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)}${pets ? `<div class="pet-grid">${pets}</div>` : `<div class="panel empty-state"><span class="empty-icon">🐾</span><strong>等待你领养第一位伙伴</strong><p>完成作业打卡赚积分，再去小铺挑一只喜欢的宠物吧。</p><button class="primary-button" data-view="shop">去积分小铺看看 →</button></div>`}<section class="story-section"><div class="section-title"><h2>最近的小故事</h2><span class="section-note">每一次努力都有记录</span></div><div class="panel panel-pad">${renderActivity(8)}</div></section>`
+    const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)
+    if (!state.pets.length) return `${heading}<div class="panel empty-state pet-house-empty"><span class="empty-icon">🐾</span><strong>小家在等第一位伙伴</strong><p>完成作业攒积分，领养后就能在这里喂它、陪它玩。</p><button class="primary-button" data-view="shop">去领养小伙伴 →</button></div>`
+    const pet = state.pets.find(item => item.id === activePetId) || state.pets[0]
+    activePetId = pet.id
+    const mode = petAnimation?.petId === pet.id ? petAnimation.type : 'idle'
+    const busy = Boolean(petAnimation)
+    const speech = mode === 'eating' ? '啊呜啊呜，真香～' : mode === 'playing' ? '和你一起玩，最开心啦！' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
+    const disabled = busy ? 'disabled' : ''
+    return `${heading}<div class="pet-room-layout"><section class="pet-house" aria-label="${escapeHtml(pet.name)}的房间">
+      <header class="house-heading"><div><span class="house-eyebrow">MY COZY HOME</span><h2>${escapeHtml(pet.name)}的小家 <span>${escapeHtml(pet.species)}</span></h2></div><span class="house-food">🥣 <strong>${state.food}</strong> 份饲料</span></header>
+      <div class="pet-room-scene is-${mode}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}">${renderRoomArtwork()}
+        <div class="room-vitals"><div class="room-vital"><div><span>🍚 饱饱度</span><strong>${pet.satiety}%</strong></div><div class="room-vital-track"><span style="width:${pet.satiety}%"></span></div></div><div class="room-vital"><div><span>💛 开心度</span><strong>${pet.happiness}%</strong></div><div class="room-vital-track happy"><span style="width:${pet.happiness}%"></span></div></div></div>
+        <div class="pet-speech" role="status" aria-live="polite">${speech}</div>
+        <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet)}</div>
+        <div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
+        ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${disabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${disabled}>›</button>` : ''}
+        <span class="room-floor-note">${mode === 'eating' ? '正在享用一份香香宠物粮' : mode === 'playing' ? '今天又多了一段开心回忆' : '每一次陪伴，都在悄悄长大'}</span>
+      </div>
+      <div class="pet-care-dock" aria-label="照顾宠物">
+        ${state.food > 0 || mode === 'eating' ? `<button class="pet-care-button care-feed" data-action="feed-pet" data-id="${escapeHtml(pet.id)}" ${disabled}><span class="care-button-icon">🥣</span><strong>${mode === 'eating' ? '吃饭中…' : '喂食'}</strong><small>消耗 1 份饲料</small></button>` : `<button class="pet-care-button care-feed" data-view="shop" ${disabled}><span class="care-button-icon">🥣</span><strong>买点饲料</strong><small>背包里的饲料用完啦</small></button>`}
+        <button class="pet-care-button care-walk" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-cost="10" data-outing="公园散步" ${disabled}><span class="care-button-icon">🌳</span><strong>去公园</strong><small>10 积分</small></button>
+        <button class="pet-care-button care-play" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-cost="20" data-outing="宠物乐园" ${disabled}><span class="care-button-icon">🎠</span><strong>宠物乐园</strong><small>20 积分</small></button>
+      </div>
+    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${disabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${friend.id === pet.id ? '在家里' : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
+  }
+
+  function selectPet(id) {
+    if (petAnimation || !state.pets.some(pet => pet.id === id)) return
+    activePetId = id
+    render()
+  }
+  function cyclePet(direction) {
+    if (petAnimation || state.pets.length < 2) return
+    const index = Math.max(0, state.pets.findIndex(pet => pet.id === activePetId))
+    selectPet(state.pets[(index + direction + state.pets.length) % state.pets.length].id)
+  }
+  function finishPetAnimation(duration, message) {
+    clearTimeout(petAnimationTimer)
+    petAnimationTimer = setTimeout(() => {
+      petAnimation = null
+      if (currentView === 'pets') { render(); showToast(message) }
+    }, duration)
   }
 
   function renderShop() {
@@ -441,15 +564,20 @@
     commit('饲料放进背包啦')
   }
   function feedPet(id) {
+    if (petAnimation) return
     const pet = state.pets.find(item => item.id === id)
     if (!pet || state.food < 1) return showToast('背包里没有饲料啦')
     state.food -= 1
     pet.satiety = Math.min(100, pet.satiety + 32)
     pet.happiness = Math.min(100, pet.happiness + 6)
     addLog(`给${pet.name}喂了一份饲料`)
-    commit(`${pet.name}吃得很开心`)
+    activePetId = id
+    petAnimation = { petId: id, type: 'eating' }
+    if (!commit()) { petAnimation = null; render(); return }
+    finishPetAnimation(3700, `${pet.name}吃饱啦，谢谢你！`)
   }
   function playPet(id, cost, outing) {
+    if (petAnimation) return
     const pet = state.pets.find(item => item.id === id)
     if (!pet) return
     if (state.points < cost) return showToast('积分还不够，完成作业再来玩吧')
@@ -458,7 +586,10 @@
     pet.satiety = Math.max(0, pet.satiety - 8)
     pet.playCount += 1
     addLog(`带${pet.name}去了${outing}，花费 ${cost} 积分`)
-    commit(`${pet.name}玩得很开心！`)
+    activePetId = id
+    petAnimation = { petId: id, type: 'playing' }
+    if (!commit()) { petAnimation = null; render(); return }
+    finishPetAnimation(2200, `${pet.name}玩得很开心！`)
   }
   function blobDataUrl(blob) {
     return new Promise((resolve, reject) => {
@@ -591,6 +722,9 @@
     if (action === 'adopt') adoptPet(button.dataset.id)
     if (action === 'buy-food') buyFood()
     if (action === 'feed-pet') feedPet(button.dataset.id)
+    if (action === 'select-pet') selectPet(button.dataset.id)
+    if (action === 'previous-pet') cyclePet(-1)
+    if (action === 'next-pet') cyclePet(1)
     if (action === 'play-pet') playPet(button.dataset.id, Number(button.dataset.cost), button.dataset.outing)
     if (action === 'export') exportBackup()
     if (action === 'import') importFile.click()
