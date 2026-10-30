@@ -8,6 +8,11 @@
     { id: 'rabbit', species: '兔兔', name: '小兔', nameBase: '跳跳', emoji: '🐰', intro: '蹦蹦跳跳，喜欢胡萝卜', price: 60, art: 'rabbit' }
   ]
   const FOOD_PRICE = 20
+  const TRIP_DURATION = 12000
+  const OUTINGS = {
+    park: { cost: 10, name: '公园散步', place: '公园', icon: '🌳', happiness: 18 },
+    playground: { cost: 20, name: '宠物乐园', place: '宠物乐园', icon: '🎠', happiness: 26 }
+  }
   const main = document.querySelector('#main-view')
   const topPoints = document.querySelector('#top-points')
   const toast = document.querySelector('#toast')
@@ -284,11 +289,15 @@
     state.activityLog.unshift({ id: makeId(), message, stamp: nowStamp() })
     state.activityLog = state.activityLog.slice(0, 20)
   }
-  function showToast(message) {
+  function showToast(message, centered = false) {
     toast.textContent = message
+    toast.classList.toggle('toast-centered', centered)
     toast.classList.add('visible')
     clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => toast.classList.remove('visible'), 2300)
+    toastTimer = setTimeout(() => toast.classList.remove('visible'), centered ? 3200 : 2300)
+  }
+  function showInsufficientPoints(cost) {
+    showToast(`积分还不够，还差 ${Math.max(0, cost - state.points)} 分。\n完成作业或请大人奖励后再来吧`, true)
   }
   function updateNav() {
     document.querySelectorAll('[data-view]').forEach(button => {
@@ -398,6 +407,29 @@
       </g>
     </svg>`
   }
+  function renderOutdoorArtwork(scene) {
+    const park = scene === 'park'
+    const trees = `<g stroke="#72946a" stroke-width="4" stroke-linejoin="round"><path d="M105 409V276M608 410V267" stroke="#af8965" stroke-width="18"/><g class="outdoor-tree"><path d="M41 307Q15 273 49 250Q26 213 66 201Q76 161 113 180Q148 164 162 203Q195 217 174 250Q195 279 164 307Z" fill="#a6c88e"/><path d="M552 293Q529 257 560 238Q539 202 577 189Q590 153 622 172Q661 154 673 194Q709 207 687 242Q709 272 675 294Z" fill="#99bf8a"/></g><path d="M105 320L80 292M608 318L634 287" fill="none" stroke="#af8965" stroke-width="8"/></g>`
+    const ground = `<path d="M0 365Q151 327 302 365Q500 328 720 365V650H0Z" fill="${park ? '#b9d79c' : '#c5dda7'}"/><path d="M0 440Q170 410 338 442T720 440V650H0Z" fill="${park ? '#cce2b2' : '#d9e8bc'}"/>`
+    const flowers = `<g stroke="#83a76d" stroke-width="3" fill="none"><path d="M79 550V532M641 556V538M597 600V583M130 613V594"/></g><g fill="#fff8da" stroke="#e5c982" stroke-width="2"><circle cx="79" cy="529" r="9"/><circle cx="641" cy="535" r="9"/><circle cx="597" cy="580" r="8"/><circle cx="130" cy="591" r="8"/></g><g fill="#e6b968"><circle cx="79" cy="529" r="3"/><circle cx="641" cy="535" r="3"/><circle cx="597" cy="580" r="3"/><circle cx="130" cy="591" r="3"/></g>`
+    return `<svg class="room-artwork outdoor-artwork" viewBox="0 0 720 650" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="720" height="650" fill="${park ? '#dbf1eb' : '#e4f2fc'}"/><circle class="outdoor-sun" cx="545" cy="127" r="35" fill="#f9da89"/><g class="outdoor-clouds" fill="#fffdf4"><path d="M105 165Q95 139 120 131Q128 102 153 116Q180 99 190 128Q215 126 217 155Q216 167 203 167Z"/><path d="M405 214Q395 192 417 185Q425 164 445 176Q468 163 478 185Q504 184 506 209Z"/></g><path d="M0 353Q109 268 234 343Q374 247 516 334Q632 269 720 340V421H0Z" fill="#c3dcb3"/>
+      ${ground}${trees}
+      ${park ? `<path d="M370 370Q253 406 318 444Q440 487 340 650H536Q580 503 415 444Q340 412 426 370Z" fill="#f5e3b5" stroke="#decba1" stroke-width="3"/>
+      <g stroke="#a58260" stroke-width="4" stroke-linecap="round"><path d="M483 414V448M615 414V448"/><rect x="472" y="368" width="156" height="17" rx="5" fill="#d3ad7f"/><rect x="472" y="392" width="156" height="17" rx="5" fill="#d3ad7f"/><path d="M468 418H634" stroke-width="14"/></g>
+      <ellipse cx="127" cy="443" rx="104" ry="35" fill="#98c9bf" stroke="#80b4a6" stroke-width="4"/><path class="pond-ripple" d="M63 439Q98 430 133 438M108 455Q139 447 172 453" fill="none" stroke="#d5eee0" stroke-width="4" stroke-linecap="round"/><g fill="none" stroke="#85aaa0" stroke-width="3" stroke-linecap="round"><path d="M279 201Q287 190 295 201Q303 190 311 201M330 171Q336 164 342 171Q348 164 354 171"/></g>
+      <g stroke="#b2946f" stroke-width="3"><path d="M235 391V316"/><path d="M210 309H271L282 323L271 337H210Z" fill="#fff6d8"/></g><path d="M227 322H260M251 316L260 322L251 328" stroke="#8caa73" stroke-width="3" fill="none"/>` : `<g stroke="#ad9980" stroke-width="3" fill="#faf1d8"><path d="M51 386V330L60 319L69 330V386M81 386V330L90 319L99 330V386M111 386V330L120 319L129 330V386M591 386V330L600 319L609 330V386M621 386V330L630 319L639 330V386M651 386V330L660 319L669 330V386"/><path d="M51 346H129M591 346H669M51 371H129M591 371H669" fill="none" stroke-width="6"/></g>
+      <g stroke="#ac8c6a" stroke-width="5" stroke-linejoin="round"><path d="M257 364V233Q360 174 463 233V364" fill="none" stroke="#ddb283" stroke-width="13"/><path d="M265 231Q360 180 455 231V262Q360 215 265 262Z" fill="#fff4cf"/><g stroke="none"><circle cx="347" cy="230" r="8" fill="#c69f73"/><circle cx="372" cy="230" r="8" fill="#c69f73"/><ellipse cx="360" cy="246" rx="16" ry="11" fill="#c69f73"/></g><path d="M257 283L297 291L257 308ZM463 283L423 291L463 308Z" fill="#d7a19a" stroke-width="2"/></g>
+      <g stroke="#9c9e80" stroke-width="4"><ellipse cx="201" cy="425" rx="57" ry="61" fill="#bed1b8"/><path d="M146 417Q138 366 168 365H212Q246 368 245 418" fill="#b4cad0"/><ellipse cx="166" cy="425" rx="39" ry="53" fill="#789b98"/><path d="M193 371Q210 391 211 423M218 375Q231 394 232 420" fill="none" stroke="#e1e8cd" stroke-width="6"/></g>
+      <g stroke="#b69578" stroke-width="5" stroke-linejoin="round"><path d="M498 415V294H549V415" fill="none"/><path d="M498 315H548M498 341H548M498 367H548" fill="none" stroke-width="4"/><path d="M492 290H553L620 420H567L517 323H492Z" fill="#e9b38d"/><path d="M540 299L595 410" fill="none" stroke="#ffe0a8" stroke-width="17" stroke-linecap="round"/></g>
+      <g fill="none" stroke="#c7a885" stroke-width="7"><path d="M440 520V453M520 520V453"/><ellipse cx="480" cy="448" rx="43" ry="50" stroke="#d9a3a2" stroke-width="10"/></g><g fill="#e8c97e" stroke="#bdab70" stroke-width="3"><path d="M285 396V376L299 363L313 376V396Z"/><path d="M408 396V376L422 363L436 376V396Z"/></g><path d="M299 379H422" stroke="#eac98a" stroke-width="7"/>`}
+      ${flowers}<g stroke="#9fbd82" stroke-width="3" fill="none" stroke-linecap="round"><path d="M48 587L44 577M48 587L54 576M661 488L656 478M661 488L669 477M205 571L201 561M205 571L213 560"/></g>
+    </svg>`
+  }
+  function renderTripProps(scene) {
+    if (scene === 'park') return `<div class="trip-butterfly" aria-hidden="true"><svg viewBox="0 0 60 50"><g class="butterfly-wings" fill="#edc58c" stroke="#b5976d" stroke-width="2"><path d="M30 26Q-1 4 7 30Q11 48 30 30Q54 51 54 27Q58 1 30 26Z"/></g><path d="M30 21V36M30 22L25 17M30 22L35 16" stroke="#9b805c" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>`
+    return `<div class="trip-ball" aria-hidden="true"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="33" fill="#e9bb7c" stroke="#ac8c68" stroke-width="4"/><path d="M40 7Q16 40 40 73M40 7Q66 40 40 73" fill="#a9c7be" stroke="#ac8c68" stroke-width="3"/><path d="M9 29Q39 47 71 29" fill="none" stroke="#fff4d5" stroke-width="5"/></svg></div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
+  }
   function renderAnimatedAnimal(pet) {
     const kind = petKind(pet)
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
@@ -421,7 +453,7 @@
     return `<svg class="pet-character pet-character-${kind}" viewBox="0 0 340 340" role="img" aria-label="${escapeHtml(pet.name)}的动态${escapeHtml(pet.species)}形象">
       <g stroke="#825e45" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
         <g class="pet-tail">${tail}</g>
-        <g class="pet-body"><ellipse cx="170" cy="247" rx="70" ry="64" fill="${fur}"/><ellipse cx="170" cy="259" rx="37" ry="43" fill="${belly}" stroke="none"/><ellipse cx="120" cy="293" rx="30" ry="16" fill="${fur}"/><ellipse cx="222" cy="293" rx="30" ry="16" fill="${fur}"/><path d="M132 240L128 283Q128 302 145 303Q160 302 160 285L159 249" fill="${belly}"/><path d="M182 249L181 285Q180 302 197 303Q213 301 211 284L207 241" fill="${belly}"/><path d="M138 291V298M149 291V298M190 291V298M201 291V298" stroke="#c5a78b" stroke-width="2"/></g>
+        <g class="pet-body"><ellipse cx="170" cy="247" rx="70" ry="64" fill="${fur}"/><ellipse cx="170" cy="259" rx="37" ry="43" fill="${belly}" stroke="none"/><g class="pet-paw pet-paw-back-left"><ellipse cx="120" cy="293" rx="30" ry="16" fill="${fur}"/></g><g class="pet-paw pet-paw-back-right"><ellipse cx="222" cy="293" rx="30" ry="16" fill="${fur}"/></g><g class="pet-paw pet-paw-front-left"><path d="M132 240L128 283Q128 302 145 303Q160 302 160 285L159 249" fill="${belly}"/><path d="M138 291V298M149 291V298" stroke="#c5a78b" stroke-width="2"/></g><g class="pet-paw pet-paw-front-right"><path d="M182 249L181 285Q180 302 197 303Q213 301 211 284L207 241" fill="${belly}"/><path d="M190 291V298M201 291V298" stroke="#c5a78b" stroke-width="2"/></g></g>
         <g class="pet-head">${ears}${head}
           <g class="pet-eyes"><ellipse cx="136" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><ellipse cx="204" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><circle cx="138" cy="150" r="2.7" fill="#fff" stroke="none"/><circle cx="206" cy="150" r="2.7" fill="#fff" stroke="none"/></g>
           <g class="pet-eating-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M127 155Q136 147 145 155M195 155Q204 147 213 155"/></g>
@@ -442,25 +474,29 @@
     const pet = state.pets.find(item => item.id === activePetId) || state.pets[0]
     activePetId = pet.id
     const mode = petAnimation?.petId === pet.id ? petAnimation.type : 'idle'
+    const scene = mode === 'playing' ? petAnimation.scene : 'home'
+    const trip = OUTINGS[scene]
     const busy = Boolean(petAnimation)
-    const speech = mode === 'eating' ? '啊呜啊呜，真香～' : mode === 'playing' ? '和你一起玩，最开心啦！' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
+    const speech = mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? '追到小球啦，再跳一跳！' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
+    const location = trip ? `${trip.icon} ${pet.name}在${trip.place}` : `${pet.name}的小家`
+    const tripStyle = trip ? ` style="--trip-duration:${TRIP_DURATION}ms;--trip-elapsed:-${Math.min(TRIP_DURATION, Math.max(0, Date.now() - petAnimation.startedAt))}ms"` : ''
     const disabled = busy ? 'disabled' : ''
-    return `${heading}<div class="pet-room-layout"><section class="pet-house" aria-label="${escapeHtml(pet.name)}的房间">
-      <header class="house-heading"><div><span class="house-eyebrow">MY COZY HOME</span><h2>${escapeHtml(pet.name)}的小家 <span>${escapeHtml(pet.species)}</span></h2></div><span class="house-food">🥣 <strong>${state.food}</strong> 份饲料</span></header>
-      <div class="pet-room-scene is-${mode}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}">${renderRoomArtwork()}
+    return `${heading}<div class="pet-room-layout"><section class="pet-house ${trip ? 'is-on-trip' : ''}" aria-label="${escapeHtml(location)}">
+      <header class="house-heading"><div><span class="house-eyebrow">${trip ? 'A LITTLE ADVENTURE' : 'MY COZY HOME'}</span><h2>${escapeHtml(location)} <span>${escapeHtml(pet.species)}</span></h2></div>${trip ? '<button type="button" class="trip-return" data-action="return-home">⌂ 回小家</button>' : `<span class="house-food">🥣 <strong>${state.food}</strong> 份饲料</span>`}</header>
+      <div class="pet-room-scene is-${mode} scene-${scene}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}" data-scene="${scene}"${tripStyle}>${trip ? renderOutdoorArtwork(scene) : renderRoomArtwork()}
         <div class="room-vitals"><div class="room-vital"><div><span>🍚 饱饱度</span><strong>${pet.satiety}%</strong></div><div class="room-vital-track"><span style="width:${pet.satiety}%"></span></div></div><div class="room-vital"><div><span>💛 开心度</span><strong>${pet.happiness}%</strong></div><div class="room-vital-track happy"><span style="width:${pet.happiness}%"></span></div></div></div>
         <div class="pet-speech" role="status" aria-live="polite">${speech}</div>
         <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet)}</div>
-        <div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
+        ${trip ? renderTripProps(scene) : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
         ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${disabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${disabled}>›</button>` : ''}
-        <span class="room-floor-note">${mode === 'eating' ? '正在享用一份香香宠物粮' : mode === 'playing' ? '今天又多了一段开心回忆' : '每一次陪伴，都在悄悄长大'}</span>
+        <span class="room-floor-note">${mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
       </div>
       <div class="pet-care-dock" aria-label="照顾宠物">
         ${state.food > 0 || mode === 'eating' ? `<button class="pet-care-button care-feed" data-action="feed-pet" data-id="${escapeHtml(pet.id)}" ${disabled}><span class="care-button-icon">🥣</span><strong>${mode === 'eating' ? '吃饭中…' : '喂食'}</strong><small>消耗 1 份饲料</small></button>` : `<button class="pet-care-button care-feed" data-view="shop" ${disabled}><span class="care-button-icon">🥣</span><strong>买点饲料</strong><small>背包里的饲料用完啦</small></button>`}
-        <button class="pet-care-button care-walk" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-cost="10" data-outing="公园散步" ${disabled}><span class="care-button-icon">🌳</span><strong>去公园</strong><small>10 积分</small></button>
-        <button class="pet-care-button care-play" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-cost="20" data-outing="宠物乐园" ${disabled}><span class="care-button-icon">🎠</span><strong>宠物乐园</strong><small>20 积分</small></button>
+        <button class="pet-care-button care-walk" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="park" ${disabled}><span class="care-button-icon">🌳</span><strong>${scene === 'park' ? '散步中…' : '去公园'}</strong><small>10 积分</small></button>
+        <button class="pet-care-button care-play" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="playground" ${disabled}><span class="care-button-icon">🎠</span><strong>${scene === 'playground' ? '玩耍中…' : '宠物乐园'}</strong><small>20 积分</small></button>
       </div>
-    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${disabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${friend.id === pet.id ? '在家里' : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
+    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${disabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
   }
 
   function selectPet(id) {
@@ -479,6 +515,14 @@
       petAnimation = null
       if (currentView === 'pets') { render(); showToast(message) }
     }, duration)
+  }
+  function returnPetHome() {
+    if (petAnimation?.type !== 'playing') return
+    clearTimeout(petAnimationTimer)
+    const pet = state.pets.find(item => item.id === petAnimation.petId)
+    petAnimation = null
+    render()
+    showToast(`${pet?.name || '小伙伴'}回到小家啦！`)
   }
 
   function renderShop() {
@@ -668,7 +712,7 @@
   function adoptPet(productId) {
     const product = CATALOG.find(item => item.id === productId)
     if (!product) return
-    if (state.points < product.price) return showToast('积分还不够哦')
+    if (state.points < product.price) return showInsufficientPoints(product.price)
     const count = state.pets.filter(pet => pet.species === product.species).length
     const pet = { id: makeId(), species: product.species, name: count ? `${product.nameBase}${count + 1}` : product.nameBase, emoji: product.emoji, happiness: 72, satiety: 75, playCount: 0 }
     state.points -= product.price
@@ -677,7 +721,7 @@
     commit(`${pet.name}来啦！`)
   }
   function buyFood() {
-    if (state.points < FOOD_PRICE) return showToast('积分还不够哦')
+    if (state.points < FOOD_PRICE) return showInsufficientPoints(FOOD_PRICE)
     state.points -= FOOD_PRICE
     state.food += 3
     addLog('买了 3 份香香宠物粮')
@@ -696,20 +740,23 @@
     if (!commit()) { petAnimation = null; render(); return }
     finishPetAnimation(3700, `${pet.name}吃饱啦，谢谢你！`)
   }
-  function playPet(id, cost, outing) {
+  function playPet(id, destination) {
     if (petAnimation) return
     const pet = state.pets.find(item => item.id === id)
-    if (!pet) return
-    if (state.points < cost) return showToast('积分还不够，完成作业再来玩吧')
+    const outing = OUTINGS[destination]
+    if (!pet || !outing) return
+    const cost = outing.cost
+    if (state.points < cost) return showInsufficientPoints(cost)
     state.points -= cost
-    pet.happiness = Math.min(100, pet.happiness + (cost === 20 ? 26 : 18))
+    pet.happiness = Math.min(100, pet.happiness + outing.happiness)
     pet.satiety = Math.max(0, pet.satiety - 8)
     pet.playCount += 1
-    addLog(`带${pet.name}去了${outing}，花费 ${cost} 积分`)
+    addLog(`带${pet.name}去了${outing.name}，花费 ${cost} 积分`)
     activePetId = id
-    petAnimation = { petId: id, type: 'playing' }
+    petAnimation = { petId: id, type: 'playing', scene: destination, startedAt: Date.now() }
     if (!commit()) { petAnimation = null; render(); return }
-    finishPetAnimation(2200, `${pet.name}玩得很开心！`)
+    document.querySelector('.pet-house')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    finishPetAnimation(TRIP_DURATION, `${pet.name}玩得很开心，回到小家啦！`)
   }
   function blobDataUrl(blob) {
     return new Promise((resolve, reject) => {
@@ -852,7 +899,8 @@
     if (action === 'select-pet') selectPet(button.dataset.id)
     if (action === 'previous-pet') cyclePet(-1)
     if (action === 'next-pet') cyclePet(1)
-    if (action === 'play-pet') playPet(button.dataset.id, Number(button.dataset.cost), button.dataset.outing)
+    if (action === 'play-pet') playPet(button.dataset.id, button.dataset.destination)
+    if (action === 'return-home') returnPetHome()
     if (action === 'export') exportBackup()
     if (action === 'import') importFile.click()
     if (action === 'reset') resetData()

@@ -390,3 +390,7 @@ h1 { margin-bottom: 7px; color: var(--ink); font-size: clamp(25px, 3vw, 33px); l
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+.toast.toast-centered { z-index: 60; top: 50%; left: 50%; right: auto; bottom: auto; width: max-content; max-width: min(360px, calc(100vw - 40px)); transform: translate(-50%, -50%) scale(.95); border-radius: 19px; padding: 22px 25px; text-align: center; white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; line-height: 1.9; box-shadow: 0 16px 50px #23382f40; }
+.toast.toast-centered::before { display: block; margin-bottom: 8px; color: #f2d48c; font-size: 28px; line-height: 1; content: '✦'; }
+.toast.toast-centered.visible { transform: translate(-50%, -50%) scale(1); }

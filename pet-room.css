@@ -1,6 +1,6 @@
 /* Illustrated room and animal interactions. */
 .pet-room-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(260px, .8fr); align-items: start; gap: 20px; }
-.pet-house { overflow: hidden; border: 2px solid #d8bd9d; border-radius: 24px; background: #fff6e9; box-shadow: 0 12px 30px rgba(128, 95, 63, .08); }
+.pet-house { scroll-margin-top: 14px; overflow: hidden; border: 2px solid #d8bd9d; border-radius: 24px; background: #fff6e9; box-shadow: 0 12px 30px rgba(128, 95, 63, .08); }
 .house-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 20px 15px; border-bottom: 1px solid #e9d4b9; background: #fff8ee; }
 .house-eyebrow { display: block; margin-bottom: 5px; color: #b19c7b; font-size: 9px; font-weight: 800; letter-spacing: .15em; }
 .house-heading h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 0; color: #77573c; font-size: 19px; }
@@ -105,6 +105,61 @@
 @keyframes pet-happy-hop { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-17px) rotate(2deg); } }
 @keyframes room-cloud-drift { from { transform: translateX(-5px); } to { transform: translateX(7px); } }
 
+/* Outdoor scenes keep the same pet, with separate walking and playing motions. */
+.pet-room-scene { --trip-roam: clamp(28px, 8vw, 58px); }
+.scene-home, .is-on-trip .pet-room-scene { animation: pet-scene-arrive .55s ease-out both; }
+.is-on-trip { border-color: #b8c99f; }
+.is-on-trip .house-heading { border-color: #d7e3c8; background: #f5f8e9; }
+.trip-return { flex-shrink: 0; min-height: 38px; border: 1px solid #b8c5a4; border-radius: 12px; padding: 0 11px; background: #fffdf5; color: #698257; cursor: pointer; font-size: 11px; font-weight: 700; }
+.trip-return:hover { background: #eaf1dd; }
+.scene-park { background: #dbf1eb; }
+.scene-playground { background: #e4f2fc; }
+.outdoor-clouds { animation: outdoor-cloud-drift 10s ease-in-out infinite alternate; }
+.outdoor-tree { transform-box: fill-box; transform-origin: center bottom; animation: outdoor-leaf-sway 4s ease-in-out infinite alternate; }
+.pond-ripple { animation: outdoor-ripple 2s ease-in-out infinite; }
+.is-on-trip .pet-speech { border-color: #c6d4ab; background: #fffef3; color: #738354; }
+.is-on-trip .pet-speech::after { border-color: #c6d4ab; background: #fffef3; }
+.is-on-trip .room-floor-note { bottom: 24px; color: #6b8252; }
+.trip-progress { position: absolute; z-index: 4; right: 24px; bottom: 12px; left: 24px; height: 4px; overflow: hidden; border-radius: 9px; background: #fffdf48f; }
+.trip-progress > span { display: block; width: 100%; height: 100%; border-radius: inherit; background: #97b87c; transform-origin: left; animation: trip-time-left var(--trip-duration) linear both; animation-delay: var(--trip-elapsed); }
+.scene-park .pet-figure { animation: pet-park-stroll 4s ease-in-out infinite; }
+.scene-park .pet-character { animation: pet-walk-bob .55s ease-in-out infinite; }
+.scene-park .pet-eyes { opacity: 1; }
+.scene-park .pet-eating-eyes { opacity: 0; }
+.scene-park .pet-paw { transform-box: fill-box; transform-origin: center 10%; animation: pet-walk-paw .55s ease-in-out infinite alternate; }
+.scene-park .pet-paw-front-right, .scene-park .pet-paw-back-left { animation-delay: -.55s; }
+.scene-park .pet-tail { animation-duration: .65s; }
+.scene-park .pet-floor-shadow { animation: pet-park-shadow 4s ease-in-out infinite; }
+.scene-playground .pet-figure { animation: pet-playground-chase 3s ease-in-out infinite; }
+.scene-playground .pet-paw { transform-box: fill-box; transform-origin: center 10%; animation: pet-play-paw .5s ease-in-out infinite alternate; }
+.scene-playground .pet-paw-front-right, .scene-playground .pet-paw-back-left { animation-delay: -.5s; }
+.scene-playground .pet-tail { animation-duration: .4s; }
+.scene-playground .pet-floor-shadow { animation: pet-playground-shadow 3s ease-in-out infinite; }
+.trip-butterfly { position: absolute; z-index: 3; bottom: 205px; left: calc(50% + 76px); width: 44px; height: 38px; pointer-events: none; animation: trip-butterfly-flight 4s ease-in-out infinite; }
+.trip-butterfly svg { width: 100%; height: 100%; }
+.butterfly-wings { transform-box: fill-box; transform-origin: center; animation: butterfly-flutter .3s ease-in-out infinite alternate; }
+.trip-ball { position: absolute; z-index: 3; bottom: 69px; left: calc(50% + 63px); width: 52px; height: 52px; pointer-events: none; animation: trip-ball-bounce 3s ease-in-out infinite; }
+.trip-ball svg { display: block; width: 100%; height: 100%; }
+.trip-play-sparkles { position: absolute; z-index: 3; bottom: 140px; left: calc(50% + 70px); color: #d8ad53; pointer-events: none; }
+.trip-play-sparkles span { display: inline-block; animation: trip-sparkle 1.5s ease-in-out infinite; }
+.trip-play-sparkles span:nth-child(2) { margin-left: 12px; animation-delay: .6s; }
+@keyframes pet-scene-arrive { from { opacity: .75; } to { opacity: 1; } }
+@keyframes outdoor-cloud-drift { from { transform: translateX(-12px); } to { transform: translateX(16px); } }
+@keyframes outdoor-leaf-sway { from { transform: rotate(-1deg); } to { transform: rotate(1.4deg); } }
+@keyframes outdoor-ripple { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+@keyframes trip-time-left { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes pet-park-stroll { 0%, 100% { transform: translateX(calc(-1 * var(--trip-roam))) rotate(-2deg); } 50% { transform: translateX(var(--trip-roam)) rotate(2deg); } }
+@keyframes pet-park-shadow { 0%, 100% { transform: translateX(calc(-50% - var(--trip-roam))); } 50% { transform: translateX(calc(-50% + var(--trip-roam))); } }
+@keyframes pet-walk-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px) rotate(1deg); } }
+@keyframes pet-walk-paw { from { transform: rotate(-8deg) translateY(-1px); } to { transform: rotate(8deg) translateY(3px); } }
+@keyframes pet-playground-chase { 0%, 100% { transform: translateX(-32px) rotate(-4deg); } 20% { transform: translate(8px, -28px) rotate(3deg); } 36% { transform: translate(30px, 0) rotate(2deg) scale(1.02, .98); } 56% { transform: translate(12px, -39px) rotate(-3deg); } 74% { transform: translate(-16px, 0) rotate(-2deg); } 86% { transform: translate(-30px, -15px) rotate(2deg); } }
+@keyframes pet-playground-shadow { 0%, 100% { transform: translateX(calc(-50% - 32px)) scaleX(1); opacity: 1; } 20% { transform: translateX(calc(-50% + 8px)) scaleX(.75); opacity: .6; } 36% { transform: translateX(calc(-50% + 30px)) scaleX(1); opacity: 1; } 56% { transform: translateX(calc(-50% + 12px)) scaleX(.65); opacity: .5; } 74% { transform: translateX(calc(-50% - 16px)) scaleX(1); opacity: 1; } 86% { transform: translateX(calc(-50% - 30px)) scaleX(.8); opacity: .7; } }
+@keyframes pet-play-paw { from { transform: rotate(-12deg) translateY(-3px); } to { transform: rotate(9deg) translateY(2px); } }
+@keyframes trip-butterfly-flight { 0%, 100% { transform: translate(-20px, 0) rotate(-8deg); } 35% { transform: translate(10px, -30px) rotate(9deg); } 70% { transform: translate(-25px, -15px) rotate(-5deg); } }
+@keyframes butterfly-flutter { from { transform: scaleX(.5); } to { transform: scaleX(1); } }
+@keyframes trip-ball-bounce { 0%, 100% { transform: translate(-25px, 0) rotate(-35deg); } 20% { transform: translate(10px, -55px) rotate(45deg); } 36% { transform: translate(22px, 0) rotate(90deg) scale(1.08, .92); } 56% { transform: translate(0, -36px) rotate(150deg); } 74% { transform: translate(-20px, 0) rotate(195deg); } 86% { transform: translate(-32px, -18px) rotate(235deg); } }
+@keyframes trip-sparkle { 0%, 100% { opacity: 0; transform: scale(.5); } 40% { opacity: 1; transform: scale(1.15); } }
+
 @media (max-width: 900px) {
   .pet-room-layout { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; }
   .pet-room-aside { grid-template-columns: 1fr 1fr; align-items: start; }
@@ -132,5 +187,5 @@
   .room-backpack { grid-template-columns: 1fr auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pet-room-scene *, .pet-room-scene *::before, .pet-room-scene *::after { animation: none !important; }
+  .pet-room-scene, .pet-room-scene *, .pet-room-scene *::before, .pet-room-scene *::after { animation: none !important; }
 }
