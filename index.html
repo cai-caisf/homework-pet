@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8f7f1">
+    <meta name="description" content="完成作业打卡，收集积分，照顾自己的小宠物。">
+    <title>作业小宠物</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#home" aria-label="作业小宠物首页" data-view="home">
+          <span class="brand-mark" aria-hidden="true">🐾</span>
+          <span class="brand-copy"><strong>作业小宠物</strong><small>认真一点，快乐多一点</small></span>
+        </a>
+        <nav class="desktop-nav" aria-label="主导航">
+          <button class="nav-link active" data-view="home"><span>⌂</span>首页</button>
+          <button class="nav-link" data-view="tasks"><span>☑</span>作业打卡</button>
+          <button class="nav-link" data-view="pets"><span>♡</span>我的宠物</button>
+          <button class="nav-link" data-view="shop"><span>✿</span>积分小铺</button>
+        </nav>
+        <div class="topbar-side">
+          <div class="points-pill"><span>✦</span><strong id="top-points">0</strong><small>积分</small></div>
+          <span class="local-badge"><i></i>仅此浏览器</span>
+        </div>
+      </header>
+
+      <main id="main-view" class="main-content" tabindex="-1"></main>
+
+      <footer class="app-footer">
+        <span>🌱 每一步努力，都值得被看见</span>
+        <div class="footer-actions">
+          <button class="text-button" data-action="export">下载数据备份</button>
+          <button class="text-button" data-action="import">恢复备份</button>
+          <button class="text-button danger-text" data-action="reset">清空本机数据</button>
+        </div>
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
+      </footer>
+    </div>
+
+    <nav class="mobile-nav" aria-label="手机导航">
+      <button class="mobile-nav-link active" data-view="home"><span>⌂</span><small>首页</small></button>
+      <button class="mobile-nav-link" data-view="tasks"><span>☑</span><small>打卡</small></button>
+      <button class="mobile-nav-link" data-view="pets"><span>♡</span><small>宠物</small></button>
+      <button class="mobile-nav-link" data-view="shop"><span>✿</span><small>小铺</small></button>
+    </nav>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
