@@ -28,7 +28,10 @@
   const MAX_TASK_PHOTOS = 6
   const photoUrls = new Map()
   let photoDbPromise
-  let taskDraft = { title: '', subject: '', reward: '10' }
+  let taskDraft = newTaskDraft()
+  let selectedTaskDate = localDateKey()
+  let observedTaskToday = localDateKey()
+  let taskWindowTimer = 0
   let draftPhotos = []
   let processingPhotos = false
   let savingTask = false
@@ -55,7 +58,11 @@
   function loadState() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-      return normalizeState(saved)
+      const normalized = normalizeState(saved)
+      if (saved && Array.isArray(saved.tasks) && saved.tasks.some(task => !isValidDateKey(task?.scheduledDate))) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)) } catch (_) { /* Keep readable records even if migration cannot be saved. */ }
+      }
+      return normalized
     } catch (_) {
       return emptyState()
     }
@@ -68,6 +75,8 @@
         tasks: Array.isArray(saved.tasks) ? saved.tasks.filter(item => item && typeof item.title === 'string').map(item => ({
           id: String(item.id || makeId()), title: item.title.slice(0, 60), subject: typeof item.subject === 'string' ? item.subject.slice(0, 30) : '',
           reward: isValidReward(item.reward) ? Number(item.reward) : 10, completed: Boolean(item.completed), completedAt: String(item.completedAt || ''), icon: '📚',
+          scheduledDate: isValidDateKey(item.scheduledDate) ? item.scheduledDate : localDateKey(),
+          timeWindow: validTimeWindow(item.timeWindow) ? { start: item.timeWindow.start, end: item.timeWindow.end } : null,
           photos: Array.isArray(item.photos) ? item.photos.filter(photo => photo && typeof photo.id === 'string').slice(0, MAX_TASK_PHOTOS).map(photo => ({ id: photo.id, name: typeof photo.name === 'string' ? photo.name.slice(0, 100) : '作业照片' })) : []
         })) : [],
         pets: Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(item => ({
@@ -105,6 +114,93 @@
   }
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
+  }
+
+  function newTaskDraft() {
+    return { title: '', subject: '', reward: '10', scheduledDate: '', extraDates: [], timeRestricted: false, startTime: '18:00', endTime: '21:00' }
+  }
+  function localDateKey(date = new Date()) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }
+  function isValidDateKey(value) {
+    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && localDateKey(new Date(`${value}T12:00:00`)) === value
+  }
+  function addDateDays(key, days) {
+    const date = new Date(`${key}T12:00:00`)
+    date.setDate(date.getDate() + days)
+    return localDateKey(date)
+  }
+  function weekDates(key) {
+    const day = new Date(`${key}T12:00:00`).getDay()
+    const monday = addDateDays(key, -((day + 6) % 7))
+    return Array.from({ length: 7 }, (_, index) => addDateDays(monday, index))
+  }
+  function taskDateLabel(key) {
+    return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', weekday: 'long' }).format(new Date(`${key}T12:00:00`))
+  }
+  function validTimeWindow(value) {
+    return value && typeof value === 'object' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.start) && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.end) && value.start !== value.end
+  }
+  function taskTimeBounds(task) {
+    if (!validTimeWindow(task.timeWindow)) return null
+    const { start, end } = task.timeWindow
+    return { start: new Date(`${task.scheduledDate}T${start}:00`).getTime(), end: new Date(`${end < start ? addDateDays(task.scheduledDate, 1) : task.scheduledDate}T${end}:00`).getTime() }
+  }
+  function taskAvailability(task, now = new Date()) {
+    const bounds = taskTimeBounds(task)
+    if (!bounds) return { allowed: true, status: 'open', button: `完成打卡 +${task.reward}`, message: '不限时间，完成后确认打卡即可领取积分' }
+    const windowLabel = `${taskDateLabel(task.scheduledDate)} ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}`
+    if (now.getTime() < bounds.start) return { allowed: false, status: 'upcoming', button: '未到时间', message: `尚未开始，仅限 ${windowLabel}` }
+    if (now.getTime() >= bounds.end) return { allowed: false, status: 'expired', button: '已错过时间', message: `已错过打卡时间：${windowLabel}` }
+    return { allowed: true, status: 'open', button: `完成打卡 +${task.reward}`, message: `可打卡时间：${windowLabel}（结束后不可补打卡）` }
+  }
+  function refreshTaskAvailability() {
+    const tasks = new Map(state.tasks.map(task => [task.id, task]))
+    document.querySelectorAll('[data-action="complete-task"]').forEach(button => {
+      const task = tasks.get(button.dataset.id)
+      if (!task || task.completed) return
+      const availability = taskAvailability(task)
+      button.disabled = !availability.allowed
+      button.textContent = availability.button
+      const message = button.closest('.task-card')?.querySelector('.task-availability')
+      if (message) { message.textContent = availability.message; message.dataset.status = availability.status }
+    })
+    document.querySelectorAll('[data-preview-id]').forEach(label => {
+      const task = tasks.get(label.dataset.previewId)
+      if (!task) return
+      const status = task.completed ? '已经完成' : taskAvailability(task).status === 'expired' ? '已错过时间' : taskAvailability(task).status === 'upcoming' ? '未到时间' : '等待打卡'
+      label.textContent = `${task.subject || '今日任务'} · ${status}`
+    })
+    scheduleTaskWindowCheck()
+  }
+  function scheduleTaskWindowCheck() {
+    clearTimeout(taskWindowTimer)
+    const now = Date.now()
+    const boundaries = state.tasks.filter(task => !task.completed).flatMap(task => { const bounds = taskTimeBounds(task); return bounds ? [bounds.start, bounds.end].filter(value => value > now) : [] })
+    if (boundaries.length) taskWindowTimer = setTimeout(refreshTaskAvailability, Math.min(2147483647, Math.max(50, Math.min(...boundaries) - now + 25)))
+  }
+  function selectTaskDate(key) {
+    if (!isValidDateKey(key) || savingTask) return
+    selectedTaskDate = key
+    if (!taskDraft.title.trim() && !draftPhotos.length) { taskDraft.scheduledDate = key; taskDraft.extraDates = [] }
+    render()
+  }
+  function chooseAssignmentDays(count) {
+    if (savingTask) return
+    const dates = weekDates(taskDraft.scheduledDate || selectedTaskDate).slice(0, count)
+    taskDraft.scheduledDate = dates[0]
+    taskDraft.extraDates = dates.slice(1)
+    render()
+  }
+  function syncTaskCalendar() {
+    const today = localDateKey()
+    if (today !== observedTaskToday) {
+      const previous = observedTaskToday
+      observedTaskToday = today
+      if (selectedTaskDate === previous && !taskDraft.title.trim() && !draftPhotos.length) { selectedTaskDate = today; taskDraft.scheduledDate = ''; taskDraft.extraDates = [] }
+      if (currentView === 'home' || (currentView === 'tasks' && !taskDraft.title.trim() && !draftPhotos.length)) render()
+    }
+    refreshTaskAvailability()
   }
 
   function openPhotoDb() {
@@ -180,7 +276,8 @@
     container.innerHTML = draftPhotos.map((photo, index) => `<div class="draft-photo-card"><button type="button" class="draft-photo-preview" data-action="preview-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="放大待添加的作业照片 ${index + 1}"><img src="${escapeHtml(photo.url)}" alt="待添加的作业照片 ${index + 1}"></button><button type="button" class="remove-photo" data-action="remove-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="移除作业照片 ${index + 1}">×</button></div>`).join('')
     document.querySelector('#photo-selection-status').textContent = processingPhotos ? '正在处理照片…' : draftPhotos.length ? `已选 ${draftPhotos.length} / ${MAX_TASK_PHOTOS} 张 · 点击照片放大` : `可拍下作业页、题目或老师的要求，最多 ${MAX_TASK_PHOTOS} 张`
     const busy = processingPhotos || savingTask
-    document.querySelectorAll('#task-form .text-input').forEach(input => { input.disabled = savingTask })
+    document.querySelectorAll('#task-form input').forEach(input => { input.disabled = savingTask || input.hasAttribute('data-required-date') })
+    document.querySelectorAll('#task-form [data-action="assign-school-days"], #task-form [data-action="assign-all-week"], #task-form [data-action="assign-one-day"]').forEach(button => { button.disabled = savingTask })
     document.querySelectorAll('#task-form button[type="submit"], .remove-photo').forEach(button => { button.disabled = busy })
     document.querySelectorAll('[data-action="take-task-photo"], [data-action="choose-task-photos"]').forEach(button => { button.disabled = busy || draftPhotos.length >= MAX_TASK_PHOTOS })
   }
@@ -214,7 +311,8 @@
   function clearTaskDraft() {
     draftPhotos.forEach(photo => URL.revokeObjectURL(photo.url))
     draftPhotos = []
-    taskDraft = { title: '', subject: '', reward: '10' }
+    taskDraft = newTaskDraft()
+    selectedTaskDate = localDateKey()
   }
   function renderTaskPhotos(task) {
     if (!task.photos.length) return ''
@@ -355,6 +453,7 @@
     main.innerHTML = (views[currentView] || renderHome)()
     if (currentView === 'tasks') renderDraftPhotos()
     hydratePhotoThumbnails()
+    scheduleTaskWindowCheck()
   }
 
   function renderHeading(eyebrow, title, subtitle, side = '') {
@@ -362,7 +461,8 @@
   }
   function renderTaskPreview(task) {
     const checked = task.completed ? 'checked' : ''
-    return `<div class="task-preview"><span class="task-check ${checked}">${task.completed ? '✓' : ''}</span><div class="task-preview-copy"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · ${task.completed ? '已经完成' : '等待打卡'}</small></div>${task.photos.length ? `<button class="task-photo-thumb preview-photo-button" data-action="preview-task-photo" data-task-id="${escapeHtml(task.id)}" data-id="${escapeHtml(task.photos[0].id)}" aria-label="查看「${escapeHtml(task.title)}」的作业照片"><img data-photo-id="${escapeHtml(task.photos[0].id)}" alt="作业照片"><span class="photo-placeholder">📷</span></button>` : ''}<span class="reward-mini">${task.completed ? '✓ ' : '✦ '}${task.reward}分</span></div>`
+    const taskStatus = task.completed ? '已经完成' : taskAvailability(task).status === 'expired' ? '已错过时间' : taskAvailability(task).status === 'upcoming' ? '未到时间' : '等待打卡'
+    return `<div class="task-preview"><span class="task-check ${checked}">${task.completed ? '✓' : ''}</span><div class="task-preview-copy"><strong>${escapeHtml(task.title)}</strong><small data-preview-id="${escapeHtml(task.id)}">${escapeHtml(task.subject || '今日任务')} · ${taskStatus}</small></div>${task.photos.length ? `<button class="task-photo-thumb preview-photo-button" data-action="preview-task-photo" data-task-id="${escapeHtml(task.id)}" data-id="${escapeHtml(task.photos[0].id)}" aria-label="查看「${escapeHtml(task.title)}」的作业照片"><img data-photo-id="${escapeHtml(task.photos[0].id)}" alt="作业照片"><span class="photo-placeholder">📷</span></button>` : ''}<span class="reward-mini">${task.completed ? '✓ ' : '✦ '}${task.reward}分</span></div>`
   }
   function renderActivity(limit = 5) {
     if (!state.activityLog.length) return `<div class="empty-state"><span class="empty-icon">✨</span><strong>故事从第一次努力开始</strong><p>完成作业或照顾小伙伴后，记录会出现在这里。</p></div>`
@@ -378,31 +478,55 @@
   }
 
   function renderHome() {
-    const completed = state.tasks.filter(task => task.completed).length
-    const total = state.tasks.length
+    const today = localDateKey()
+    const dailyTasks = state.tasks.filter(task => task.scheduledDate === today)
+    const completed = dailyTasks.filter(task => task.completed).length
+    const total = dailyTasks.length
     const progress = total ? Math.round(completed / total * 100) : 0
     const progressMessage = !total ? '先安排今天要完成的事情吧' : completed === total ? '太棒啦，今天的任务都完成了！' : `再完成 ${total - completed} 项就全部完成啦`
     const heroPet = escapeHtml(state.pets[0]?.emoji || '🐶')
-    const tasks = state.tasks.slice(0, 4)
+    const tasks = dailyTasks.slice(0, 4)
     return `<div class="welcome-row"><div class="page-heading"><span class="eyebrow">每一次认真，都有小小惊喜</span><h1>今天也加油呀！</h1><p class="page-subtitle">把一件件小事做好，宠物伙伴也会为你开心。</p></div><span class="date-chip">☀️ ${todayLabel()}</span></div>
-      <section class="home-hero"><div class="hero-text"><span class="hero-kicker">我的成长星星</span><div class="hero-points"><strong>${state.points}</strong><span>积分</span></div><p>完成一项作业，就离心愿更近一步。</p><div class="hero-actions"><button class="hero-cta" data-view="tasks">去完成作业 <span>→</span></button><button class="hero-parent-button" data-action="parent-reward">✦ 大人奖励</button></div></div><div class="hero-pet-art"><span class="hero-orbit"></span><span class="hero-star star-a">✦</span><span class="hero-star star-b">✦</span><span class="hero-pet-emoji">${heroPet}</span></div></section>
+      <section class="home-hero"><div class="hero-text"><span class="hero-kicker">我的成长星星</span><div class="hero-points"><strong>${state.points}</strong><span>积分</span></div><p>完成一项作业，就离心愿更近一步。</p><div class="hero-actions"><button class="hero-cta" data-view="tasks" data-date="${today}">去完成作业 <span>→</span></button><button class="hero-parent-button" data-action="parent-reward">✦ 大人奖励</button></div></div><div class="hero-pet-art"><span class="hero-orbit"></span><span class="hero-star star-a">✦</span><span class="hero-star star-b">✦</span><span class="hero-pet-emoji">${heroPet}</span></div></section>
       <div class="home-stats"><div class="stat-card"><span class="stat-icon">📚</span><div class="stat-copy"><span>今天的作业</span><strong>${completed}<small class="soft-label"> / ${total} 项</small></strong></div></div><div class="stat-card"><span class="stat-icon">🐾</span><div class="stat-copy"><span>我的小伙伴</span><strong>${state.pets.length}<small class="soft-label"> 只</small></strong></div></div><div class="stat-card"><span class="stat-icon">🥣</span><div class="stat-copy"><span>宠物饲料</span><strong>${state.food}<small class="soft-label"> 份</small></strong></div></div></div>
-      <div class="home-columns"><section class="panel home-task-panel"><div class="section-title"><h2>今天的作业</h2><span class="section-note">${progressMessage}</span></div><div class="progress-label"><span>完成进度</span><strong>${progress}%</strong></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>${tasks.length ? `<div class="preview-list">${tasks.map(renderTaskPreview).join('')}</div>${total > 4 ? `<span class="section-note">还有 ${total - 4} 项任务</span>` : ''}<button class="panel-footer-link" data-view="tasks">查看全部任务 →</button>` : `<div class="soft-prompt"><span>📝</span><small>先添加作业，完成打卡就能获得积分</small><button class="panel-footer-link" data-view="tasks">添加第一项作业 →</button></div>`}</section>
+      <div class="home-columns"><section class="panel home-task-panel"><div class="section-title"><h2>今天的作业</h2><span class="section-note">${progressMessage}</span></div><div class="progress-label"><span>完成进度</span><strong>${progress}%</strong></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>${tasks.length ? `<div class="preview-list">${tasks.map(renderTaskPreview).join('')}</div>${total > 4 ? `<span class="section-note">还有 ${total - 4} 项任务</span>` : ''}<button class="panel-footer-link" data-view="tasks" data-date="${today}">查看全部任务 →</button>` : `<div class="soft-prompt"><span>📝</span><small>先添加作业，完成打卡就能获得积分</small><button class="panel-footer-link" data-view="tasks" data-date="${today}">添加第一项作业 →</button></div>`}</section>
       <section class="panel home-pet-panel"><div class="section-title"><h2>我的小伙伴</h2><button class="quiet-button" data-view="pets">去照顾 →</button></div>${state.pets.length ? `<div class="my-pet-summary">${state.pets.slice(0, 4).map(renderPetMini).join('')}</div><button class="panel-footer-link" data-view="shop">用积分认识新伙伴 →</button>` : `<div class="soft-prompt"><span>🐾</span><small>还没有小伙伴，攒够积分就能领养啦</small><button class="panel-footer-link" data-view="shop">去积分小铺看看 →</button></div>`}</section></div>
       <section class="panel activity-panel"><div class="section-title"><h2>最近的小故事</h2><span class="section-note">每一次努力都有记录</span></div>${renderActivity(4)}</section>`
   }
 
   function renderTaskCard(task) {
-    return `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '今日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}">完成打卡 +${task.reward}</button>`}</div>${renderTaskPhotos(task)}<div class="task-card-actions"><span class="task-completed-at">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : '完成后确认打卡，即可领取积分'}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`
+    const availability = taskAvailability(task)
+    return `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '当日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}" ${availability.allowed ? '' : 'disabled'}>${availability.button}</button>`}</div>${renderTaskPhotos(task)}<div class="task-card-actions"><span class="task-completed-at task-availability" data-status="${availability.status}">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : escapeHtml(availability.message)}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`
+  }
+  function renderWeekCalendar() {
+    const dates = weekDates(selectedTaskDate)
+    const today = localDateKey()
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日']
+    return `<section class="panel task-calendar" aria-label="每周作业安排"><div class="week-toolbar"><strong>${dates[0]} — ${dates[6]}</strong><div class="week-navigation"><button type="button" class="quiet-button" data-action="previous-task-week" aria-label="上一周">‹</button><button type="button" class="quiet-button" data-action="task-today">回到今天</button><button type="button" class="quiet-button" data-action="next-task-week" aria-label="下一周">›</button></div></div><div class="week-grid">${dates.map((date, index) => {
+      const tasks = state.tasks.filter(task => task.scheduledDate === date)
+      const completed = tasks.filter(task => task.completed).length
+      return `<button type="button" class="week-day ${date === selectedTaskDate ? 'selected' : ''} ${date === today ? 'is-today' : ''}" data-action="select-task-date" data-date="${date}" aria-pressed="${date === selectedTaskDate}" aria-label="${taskDateLabel(date)}，${tasks.length}项作业，已完成${completed}项"><span>周${weekdays[index]}</span><strong>${Number(date.slice(-2))}</strong><small>${tasks.length ? `${completed}/${tasks.length} 项` : '暂无'}</small>${date === today ? '<i>今天</i>' : ''}</button>`
+    }).join('')}</div><label class="calendar-date-jump">查看其他日期 <input id="task-date-picker" type="date" value="${selectedTaskDate}" aria-label="查看作业日期"></label></section>`
+  }
+  function renderAssignmentDates() {
+    const primary = taskDraft.scheduledDate || selectedTaskDate
+    const dates = weekDates(primary)
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日']
+    return `<div class="assignment-field"><label class="assignment-primary"><span class="field-label">安排到哪一天</span><input class="text-input" name="scheduledDate" type="date" value="${primary}" required></label><div class="assignment-shortcuts"><button type="button" class="text-button" data-action="assign-school-days">周一至周五</button><button type="button" class="text-button" data-action="assign-all-week">整周每天</button><button type="button" class="text-button" data-action="assign-one-day">仅这一天</button></div><fieldset class="assignment-week"><legend>同样的作业还要安排到（可多选）</legend><div class="assignment-week-grid">${dates.map((date, index) => `<label class="assignment-day"><input type="checkbox" name="extraDate" value="${date}" ${date === primary || taskDraft.extraDates.includes(date) ? 'checked' : ''} ${date === primary ? 'disabled data-required-date' : ''}><span>周${weekdays[index]}</span><small>${Number(date.slice(5, 7))}/${Number(date.slice(-2))}</small></label>`).join('')}</div></fieldset><p class="form-help">每个日期会生成独立作业，积分分别领取；内容、参考照片和时间规则相同。</p></div>`
+  }
+  function renderTaskWindowFields() {
+    return `<div class="task-window-field"><label class="task-window-toggle"><input type="checkbox" name="timeRestricted" ${taskDraft.timeRestricted ? 'checked' : ''}><span>设置可打卡时间段（选填）</span></label>${taskDraft.timeRestricted ? `<div class="task-window-inputs"><label><span class="field-label">开始时间</span><input class="text-input" type="time" name="startTime" value="${taskDraft.startTime}" required></label><span>至</span><label><span class="field-label">结束时间</span><input class="text-input" type="time" name="endTime" value="${taskDraft.endTime}" required></label></div><p class="form-help">按安排日期的本地时间计算；未开始或已结束都不能打卡。结束早于开始时，视为次日结束。</p>` : '<p class="form-help">未设置时间段的作业，随时都可以完成。</p>'}</div>`
   }
   function renderTasks() {
-    const tasks = state.tasks.map(renderTaskCard).join('')
-    return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '完成作业后确认打卡，就能领取积分。', `<div class="heading-actions"><span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span><button class="outline-button" data-action="parent-reward">✦ 大人奖励</button></div>`)}
-      <section class="task-list-section"><div class="section-title"><h2>任务清单</h2><span class="section-note">${state.tasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>清单还是空的</strong><p>在下方添加作业，可附上参考照片，完成后点“完成打卡”领取积分。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>
-      <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排一项新作业</strong></div><form id="task-form" class="task-form">
+    const dailyTasks = state.tasks.filter(task => task.scheduledDate === selectedTaskDate)
+    const tasks = dailyTasks.map(renderTaskCard).join('')
+    return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '按日期安排每一天，也可以提前布置整周作业。', `<div class="heading-actions"><span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span><button class="outline-button" data-action="parent-reward">✦ 大人奖励</button></div>`)}${renderWeekCalendar()}
+      <section class="task-list-section"><div class="section-title"><h2>${selectedTaskDate === localDateKey() ? '今天 · ' : ''}${taskDateLabel(selectedTaskDate)}</h2><span class="section-note">${dailyTasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>这一天还没有安排作业</strong><p>在下方添加，可一次选择多个日期，提前安排一周的作业。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>
+      <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排新作业</strong></div><form id="task-form" class="task-form">
         <label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" value="${escapeHtml(taskDraft.title)}" required></label>
         <label class="form-subject-field"><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="20" placeholder="例如：数学" value="${escapeHtml(taskDraft.subject)}"></label>
         <label class="reward-field"><span class="field-label">完成奖励（积分）</span><input class="text-input reward-input" name="reward" type="number" min="1" max="9007199254740991" step="1" value="${escapeHtml(taskDraft.reward)}" inputmode="numeric" required></label>
+        ${renderAssignmentDates()}${renderTaskWindowFields()}
         <div class="task-photo-field"><span class="field-label">作业照片（选填）</span><div class="photo-upload-actions"><button type="button" class="outline-button" data-action="take-task-photo">📷 拍照</button><button type="button" class="outline-button" data-action="choose-task-photos">▧ 从相册选择</button></div><div id="draft-photos" class="draft-photo-grid"></div><p id="photo-selection-status" class="photo-selection-status" role="status"></p><span class="photo-local-note">照片只保存在这个浏览器，添加到作业后也可以点开放大。</span></div>
         <div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>`
   }
@@ -412,8 +536,9 @@
     if (pet.species.includes('兔')) return 'rabbit'
     return 'dog'
   }
-  function renderRoomArtwork() {
-    return `<svg class="room-artwork" viewBox="0 0 720 650" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+  function renderRoomArtwork(kind = 'dog') {
+    if (kind !== 'dog') return window.PetArtwork.home(kind)
+    return `<svg class="room-artwork" data-pet-scenery="dog-home" viewBox="0 0 720 650" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
       <rect width="720" height="650" fill="#fff1db"/>
       <path d="M0 60H720M0 148H720M0 236H720M0 324H720" stroke="#f8e9d0" stroke-width="2"/>
       <path d="M0 415H720V650H0Z" fill="#e9c5a3"/>
@@ -449,12 +574,13 @@
       </g>
     </svg>`
   }
-  function renderOutdoorArtwork(scene) {
+  function renderOutdoorArtwork(scene, kind = 'dog') {
+    if (kind !== 'dog') return window.PetArtwork.outdoor(kind, scene)
     const park = scene === 'park'
     const trees = `<g stroke="#72946a" stroke-width="4" stroke-linejoin="round"><path d="M105 409V276M608 410V267" stroke="#af8965" stroke-width="18"/><g class="outdoor-tree"><path d="M41 307Q15 273 49 250Q26 213 66 201Q76 161 113 180Q148 164 162 203Q195 217 174 250Q195 279 164 307Z" fill="#a6c88e"/><path d="M552 293Q529 257 560 238Q539 202 577 189Q590 153 622 172Q661 154 673 194Q709 207 687 242Q709 272 675 294Z" fill="#99bf8a"/></g><path d="M105 320L80 292M608 318L634 287" fill="none" stroke="#af8965" stroke-width="8"/></g>`
     const ground = `<path d="M0 365Q151 327 302 365Q500 328 720 365V650H0Z" fill="${park ? '#b9d79c' : '#c5dda7'}"/><path d="M0 440Q170 410 338 442T720 440V650H0Z" fill="${park ? '#cce2b2' : '#d9e8bc'}"/>`
     const flowers = `<g stroke="#83a76d" stroke-width="3" fill="none"><path d="M79 550V532M641 556V538M597 600V583M130 613V594"/></g><g fill="#fff8da" stroke="#e5c982" stroke-width="2"><circle cx="79" cy="529" r="9"/><circle cx="641" cy="535" r="9"/><circle cx="597" cy="580" r="8"/><circle cx="130" cy="591" r="8"/></g><g fill="#e6b968"><circle cx="79" cy="529" r="3"/><circle cx="641" cy="535" r="3"/><circle cx="597" cy="580" r="3"/><circle cx="130" cy="591" r="3"/></g>`
-    return `<svg class="room-artwork outdoor-artwork" viewBox="0 0 720 650" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    return `<svg class="room-artwork outdoor-artwork" data-pet-scenery="dog-${scene}" viewBox="0 0 720 650" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <rect width="720" height="650" fill="${park ? '#dbf1eb' : '#e4f2fc'}"/><circle class="outdoor-sun" cx="545" cy="127" r="35" fill="#f9da89"/><g class="outdoor-clouds" fill="#fffdf4"><path d="M105 165Q95 139 120 131Q128 102 153 116Q180 99 190 128Q215 126 217 155Q216 167 203 167Z"/><path d="M405 214Q395 192 417 185Q425 164 445 176Q468 163 478 185Q504 184 506 209Z"/></g><path d="M0 353Q109 268 234 343Q374 247 516 334Q632 269 720 340V421H0Z" fill="#c3dcb3"/>
       ${ground}${trees}
       ${park ? `<path d="M370 370Q253 406 318 444Q440 487 340 650H536Q580 503 415 444Q340 412 426 370Z" fill="#f5e3b5" stroke="#decba1" stroke-width="3"/>
@@ -468,12 +594,14 @@
       ${flowers}<g stroke="#9fbd82" stroke-width="3" fill="none" stroke-linecap="round"><path d="M48 587L44 577M48 587L54 576M661 488L656 478M661 488L669 477M205 571L201 561M205 571L213 560"/></g>
     </svg>`
   }
-  function renderTripProps(scene) {
+  function renderTripProps(scene, kind = 'dog') {
     if (scene === 'park') return `<div class="trip-butterfly" aria-hidden="true"><svg viewBox="0 0 60 50"><g class="butterfly-wings" fill="#edc58c" stroke="#b5976d" stroke-width="2"><path d="M30 26Q-1 4 7 30Q11 48 30 30Q54 51 54 27Q58 1 30 26Z"/></g><path d="M30 21V36M30 22L25 17M30 22L35 16" stroke="#9b805c" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>`
+    if (kind !== 'dog') return `<div class="trip-ball" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
     return `<div class="trip-ball" aria-hidden="true"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="33" fill="#e9bb7c" stroke="#ac8c68" stroke-width="4"/><path d="M40 7Q16 40 40 73M40 7Q66 40 40 73" fill="#a9c7be" stroke="#ac8c68" stroke-width="3"/><path d="M9 29Q39 47 71 29" fill="none" stroke="#fff4d5" stroke-width="5"/></svg></div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
   }
   function renderAnimatedAnimal(pet, sleeping = false) {
     const kind = petKind(pet)
+    if (sleeping) return window.PetArtwork.sleeping(pet, kind)
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
     const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
     const tail = kind === 'rabbit'
@@ -524,17 +652,19 @@
     const trip = OUTINGS[scene]
     const busy = sleeping || Boolean(petAnimation)
     const lowMood = pet.happiness < 50
-    const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? '追到小球啦，再跳一跳！' : lowMood ? '想先出去玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
-    const location = trip ? `${trip.icon} ${pet.name}在${trip.place}` : `${pet.name}的小家`
+    const kind = petKind(pet)
+    const theme = window.PetArtwork.themes[kind]
+    const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? (kind === 'cat' ? '扑一扑毛线球，玩得真开心～' : kind === 'rabbit' ? '蹦蹦跳跳，玩一玩小萝卜球～' : '追到小球啦，再跳一跳！') : lowMood ? '想先出去玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
+    const location = trip ? `${trip.icon} ${pet.name}在${theme[scene]}` : `${pet.name}的${theme.home}`
     const tripStyle = trip ? ` style="--trip-duration:${TRIP_DURATION}ms;--trip-elapsed:-${Math.min(TRIP_DURATION, Math.max(0, Date.now() - petAnimation.startedAt))}ms"` : ''
     const disabled = busy ? 'disabled' : ''
     return `${heading}${restNotice}<div class="pet-room-layout"><section class="pet-house ${trip ? 'is-on-trip' : ''} ${sleeping ? 'pet-house-sleeping' : ''}" aria-label="${escapeHtml(location)}">
       <header class="house-heading"><div><span class="house-eyebrow">${trip ? 'A LITTLE ADVENTURE' : 'MY COZY HOME'}</span><h2>${escapeHtml(location)} <span>${escapeHtml(pet.species)}</span></h2></div>${trip ? '<button type="button" class="trip-return" data-action="return-home">⌂ 回小家</button>' : `<span class="house-food">🥣 <strong>${state.food}</strong> 份饲料</span>`}</header>
-      <div class="pet-room-scene is-${mode} scene-${scene}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}" data-scene="${scene}"${tripStyle}>${trip ? renderOutdoorArtwork(scene) : renderRoomArtwork()}
+      <div class="pet-room-scene is-${mode} scene-${scene}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}" data-scene="${scene}"${tripStyle}>${trip ? renderOutdoorArtwork(scene, kind) : renderRoomArtwork(kind)}
         <div class="room-vitals"><div class="room-vital"><div><span>🍚 饱饱度</span><strong>${pet.satiety}%</strong></div><div class="room-vital-track"><span style="width:${pet.satiety}%"></span></div></div><div class="room-vital"><div><span>💛 开心度</span><strong>${pet.happiness}%</strong></div><div class="room-vital-track happy"><span style="width:${pet.happiness}%"></span></div></div></div>
         <div class="pet-speech" role="status" aria-live="polite">${speech}</div>
         <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet, sleeping)}</div>${sleeping ? '<div class="pet-sleep-sign" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div><div class="pet-night-moon" aria-hidden="true">☾</div>' : ''}
-        ${trip ? renderTripProps(scene) : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
+        ${trip ? renderTripProps(scene, kind) : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
         ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${disabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${disabled}>›</button>` : ''}
         <span class="room-floor-note">${sleeping ? '晚安，明早 06:00 自动醒来' : mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
       </div>
@@ -552,6 +682,7 @@
     if (petAnimation || !state.pets.some(pet => pet.id === id)) return
     activePetId = id
     render()
+    document.querySelector('.pet-house')?.scrollIntoView({ block: 'start', behavior: 'instant' })
   }
   function cyclePet(direction) {
     if (!allowPetInteraction()) return
@@ -600,6 +731,10 @@
     if (!title) return showToast('先写下作业内容哦')
     const reward = Number(data.get('reward'))
     if (!isValidReward(reward)) return showToast('奖励积分请填写有效的正整数')
+    const dates = [...new Set([String(data.get('scheduledDate') || ''), ...data.getAll('extraDate').map(String)])].sort()
+    if (!dates.length || dates.length > 7 || dates.some(date => !isValidDateKey(date))) return showToast('请选择有效日期，一次最多安排 7 天')
+    const timeWindow = data.has('timeRestricted') ? { start: String(data.get('startTime') || ''), end: String(data.get('endTime') || '') } : null
+    if (timeWindow && !validTimeWindow(timeWindow)) return showToast('请选择有效的开始和结束时间，两者不能相同')
     savingTask = true
     renderDraftPhotos()
     const photos = [...draftPhotos]
@@ -607,8 +742,8 @@
     try {
       await writePhotoRecords(photos)
       previousState = structuredClone(state)
-      state.tasks.unshift({ id: makeId(), title, subject: String(data.get('subject') || '').trim(), reward, completed: false, completedAt: '', icon: '📚', photos: photos.map(photo => ({ id: photo.id, name: photo.name })) })
-      addLog(`添加了作业「${title}」${photos.length ? `，附 ${photos.length} 张照片` : ''}`)
+      state.tasks.unshift(...dates.map(scheduledDate => ({ id: makeId(), title, subject: String(data.get('subject') || '').trim(), reward, scheduledDate, timeWindow: timeWindow ? { ...timeWindow } : null, completed: false, completedAt: '', icon: '📚', photos: photos.map(photo => ({ id: photo.id, name: photo.name })) })))
+      addLog(`安排了作业「${title}」到 ${dates.length} 天${photos.length ? `，附 ${photos.length} 张照片` : ''}`)
       if (!saveState()) {
         state = previousState
         await writePhotoRecords([], photos.map(photo => photo.id)).catch(() => {})
@@ -616,9 +751,10 @@
       }
       photos.forEach(photo => photoUrls.set(photo.id, photo.url))
       draftPhotos = []
-      taskDraft = { title: '', subject: '', reward: '10' }
+      taskDraft = newTaskDraft()
+      selectedTaskDate = dates[0]
       render()
-      showToast('作业添加成功')
+      showToast(dates.length > 1 ? `已为 ${dates.length} 天分别安排作业` : '作业添加成功')
     } catch (_) {
       if (previousState) state = previousState
       showToast('照片保存失败，请检查浏览器存储空间后重试')
@@ -639,8 +775,10 @@
     if (actionDialog.open) return
     const task = state.tasks.find(item => item.id === id)
     if (!task || task.completed) return
+    const availability = taskAvailability(task)
+    if (!availability.allowed) return showToast(availability.message, true)
     dialogFlow = { stage: 'complete', taskId: id }
-    dialogContent('这项作业完成了吗？', '检查一下有没有漏做的题目，再领取努力的小奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><p class="dialog-note">确认后标记为已完成，同一项作业只能领取一次积分。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog" autofocus>再检查一下</button><button type="button" class="primary-button" data-action="confirm-task">确认完成，领取积分</button></div>`)
+    dialogContent('这项作业完成了吗？', '检查一下有没有漏做的题目，再领取努力的小奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong><small>${taskDateLabel(task.scheduledDate)}${task.timeWindow ? ` · ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}` : ' · 不限时间'}</small>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><p class="dialog-note">确认后标记为已完成，同一项作业只能领取一次积分。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog" autofocus>再检查一下</button><button type="button" class="primary-button" data-action="confirm-task">确认完成，领取积分</button></div>`)
     showActionDialog(opener)
     actionDialog.querySelector('[data-action="close-action-dialog"][autofocus]').focus()
   }
@@ -742,6 +880,8 @@
   function completeTask(id) {
     const task = state.tasks.find(item => item.id === id)
     if (!task || task.completed) return
+    const availability = taskAvailability(task)
+    if (!availability.allowed) { refreshTaskAvailability(); return showToast(availability.message, true) }
     if (!Number.isSafeInteger(state.points + task.reward)) return showToast('积分总数过大，暂时无法领取')
     task.completed = true
     task.completedAt = nowStamp()
@@ -933,6 +1073,7 @@
     if (viewButton) {
       event.preventDefault()
       currentView = viewButton.dataset.view
+      if (currentView === 'tasks' && isValidDateKey(viewButton.dataset.date)) selectedTaskDate = viewButton.dataset.date
       render()
       main.focus({ preventScroll: true })
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -941,6 +1082,13 @@
     const button = event.target.closest('[data-action]')
     if (!button) return
     const action = button.dataset.action
+    if (action === 'select-task-date') selectTaskDate(button.dataset.date)
+    if (action === 'previous-task-week') selectTaskDate(addDateDays(selectedTaskDate, -7))
+    if (action === 'next-task-week') selectTaskDate(addDateDays(selectedTaskDate, 7))
+    if (action === 'task-today') selectTaskDate(localDateKey())
+    if (action === 'assign-school-days') chooseAssignmentDays(5)
+    if (action === 'assign-all-week') chooseAssignmentDays(7)
+    if (action === 'assign-one-day' && !savingTask) { taskDraft.extraDates = []; render() }
     if (action === 'complete-task') confirmTask(button.dataset.id, button)
     if (action === 'parent-reward') openParentReward(button)
     if (action === 'close-action-dialog') actionDialog.close()
@@ -986,7 +1134,15 @@
     if (form.id === 'bonus-form') reviewBonus(form)
   })
   document.addEventListener('input', event => {
-    if (event.target.closest('#task-form') && ['title', 'subject', 'reward'].includes(event.target.name)) taskDraft[event.target.name] = event.target.value
+    if (event.target.closest('#task-form') && ['title', 'subject', 'reward', 'startTime', 'endTime'].includes(event.target.name)) taskDraft[event.target.name] = event.target.value
+  })
+  document.addEventListener('change', event => {
+    const input = event.target
+    if (input.id === 'task-date-picker') selectTaskDate(input.value)
+    if (!input.closest('#task-form')) return
+    if (input.name === 'scheduledDate' && isValidDateKey(input.value)) { taskDraft.scheduledDate = input.value; taskDraft.extraDates = []; render() }
+    if (input.name === 'timeRestricted') { taskDraft.timeRestricted = input.checked; render() }
+    if (input.name === 'extraDate') taskDraft.extraDates = [...document.querySelectorAll('#task-form [name="extraDate"]:checked:not([data-required-date])')].map(item => item.value)
   })
   importFile.addEventListener('change', event => importBackup(event.target.files?.[0]))
   cameraInput.addEventListener('change', event => addDraftPhotos(event.target.files))
@@ -1021,8 +1177,11 @@
   })
 
   window.addEventListener('focus', syncPetSleep)
+  window.addEventListener('focus', syncTaskCalendar)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPetSleep() })
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncTaskCalendar() })
   setInterval(syncPetSleep, 30000)
+  setInterval(syncTaskCalendar, 60000)
   schedulePetSleepCheck()
   render()
 })()

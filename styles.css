@@ -394,3 +394,53 @@ h1 { margin-bottom: 7px; color: var(--ink); font-size: clamp(25px, 3vw, 33px); l
 .toast.toast-centered { z-index: 60; top: 50%; left: 50%; right: auto; bottom: auto; width: max-content; max-width: min(360px, calc(100vw - 40px)); transform: translate(-50%, -50%) scale(.95); border-radius: 19px; padding: 22px 25px; text-align: center; white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; line-height: 1.9; box-shadow: 0 16px 50px #23382f40; }
 .toast.toast-centered::before { display: block; margin-bottom: 8px; color: #f2d48c; font-size: 28px; line-height: 1; content: '✦'; }
 .toast.toast-centered.visible { transform: translate(-50%, -50%) scale(1); }
+
+/* Weekly assignment and optional check-in windows. */
+.task-calendar { padding: 18px; margin-bottom: 24px; }
+.week-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; }
+.week-toolbar > strong { color: var(--ink-soft); font-size: 12px; }
+.week-navigation { display: flex; align-items: center; gap: 3px; }
+.week-navigation .quiet-button { min-height: 32px; padding: 0 9px; font-size: 11px; }
+.week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.week-day { position: relative; display: grid; justify-items: center; gap: 6px; min-height: 100px; border: 1px solid var(--line); border-radius: 13px; padding: 12px 4px 19px; background: #fff; cursor: pointer; }
+.week-day > span { color: var(--muted); font-size: 11px; }
+.week-day strong { font-size: 23px; }
+.week-day small { color: var(--ink-soft); font-size: 10px; white-space: nowrap; }
+.week-day.selected { border-color: #8fae83; background: #ebf2e4; color: var(--green-deep); box-shadow: inset 0 0 0 1px #a9bf9e; }
+.week-day.is-today:not(.selected) { border-color: #d8bb7c; }
+.week-day i { position: absolute; bottom: 3px; color: #a17e3a; font-size: 8px; font-style: normal; }
+.calendar-date-jump { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; color: var(--muted); font-size: 11px; }
+.calendar-date-jump input { min-width: 0; border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px; background: #fff; color: var(--ink-soft); font-size: 13px; }
+.assignment-field, .task-window-field { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 17px; }
+.assignment-primary { display: block; max-width: 230px; }
+.assignment-primary .text-input { font-size: 14px; }
+.assignment-shortcuts { display: flex; flex-wrap: wrap; gap: 16px; margin: 11px 0; }
+.assignment-shortcuts .text-button { color: var(--green); font-weight: 600; }
+.assignment-week { min-width: 0; margin: 0; padding: 0; border: 0; }
+.assignment-week legend { margin-bottom: 9px; color: var(--ink-soft); font-size: 11px; }
+.assignment-week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.assignment-day { display: grid; justify-items: center; align-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 3px; background: #fff; cursor: pointer; }
+.assignment-day:has(input:checked) { border-color: #a7be9b; background: #eef4e8; }
+.assignment-day input { width: 15px; height: 15px; margin: 0; accent-color: var(--green); }
+.assignment-day span { color: var(--ink-soft); font-size: 11px; }
+.assignment-day small { color: var(--muted); font-size: 10px; }
+.form-help { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.task-window-toggle { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font-size: 12px; cursor: pointer; }
+.task-window-toggle input { width: 16px; height: 16px; accent-color: var(--green); }
+.task-window-inputs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 12px; max-width: 450px; margin-top: 15px; }
+.task-window-inputs > span { padding-bottom: 12px; color: var(--muted); font-size: 12px; }
+.task-window-inputs .text-input { min-width: 0; font-size: 15px; }
+.task-availability { max-width: 85%; overflow-wrap: anywhere; line-height: 1.7; }
+.task-availability[data-status="expired"] { color: #b7796e; }
+.task-availability[data-status="upcoming"] { color: #a48a56; }
+@media (max-width: 620px) {
+  .task-calendar { padding: 13px 10px; }
+  .week-grid { gap: 4px; }
+  .week-day { min-height: 90px; gap: 5px; border-radius: 10px; padding: 10px 2px 16px; }
+  .week-day strong { font-size: 19px; }
+  .week-day > span, .week-day small { font-size: 9px; }
+  .assignment-week-grid { gap: 4px; }
+  .assignment-day span, .assignment-day small { font-size: 9px; }
+  .task-availability { max-width: 100%; }
+  .task-card-actions { flex-wrap: wrap; }
+}
