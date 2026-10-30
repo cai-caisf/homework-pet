@@ -43,6 +43,8 @@
   let activePetId = ''
   let petAnimation = null
   let petAnimationTimer = 0
+  let petSleepTimer = 0
+  let observedPetSleep = isPetSleeping()
   let dialogFlow = null
   let dialogOpener = null
   let parentGateTimer = 0
@@ -299,6 +301,46 @@
   function showInsufficientPoints(cost) {
     showToast(`积分还不够，还差 ${Math.max(0, cost - state.points)} 分。\n完成作业或请大人奖励后再来吧`, true)
   }
+  function petClockNow() { return new Date() }
+  function isPetSleeping(now = petClockNow()) {
+    const minutes = now.getHours() * 60 + now.getMinutes()
+    return minutes >= 22 * 60 + 30 || minutes < 6 * 60
+  }
+  function nextPetSleepBoundary(now = petClockNow()) {
+    const next = new Date(now)
+    if (isPetSleeping(now)) {
+      next.setHours(6, 0, 0, 0)
+      if (now.getHours() >= 22) next.setDate(next.getDate() + 1)
+    } else next.setHours(22, 30, 0, 0)
+    return next
+  }
+  function schedulePetSleepCheck() {
+    clearTimeout(petSleepTimer)
+    const now = petClockNow()
+    petSleepTimer = setTimeout(syncPetSleep, Math.max(50, nextPetSleepBoundary(now).getTime() - now.getTime() + 25))
+  }
+  function syncPetSleep() {
+    const sleeping = isPetSleeping()
+    if (sleeping !== observedPetSleep) {
+      observedPetSleep = sleeping
+      if (sleeping) {
+        clearTimeout(petAnimationTimer)
+        petAnimation = null
+      }
+      if (currentView === 'pets' || currentView === 'shop') render()
+      if (currentView === 'pets' && state.pets.length) showToast(sleeping ? '22:30 啦，小伙伴回家睡觉了，明早 06:00 再来吧' : '早上好，小伙伴睡醒啦！', true)
+    }
+    schedulePetSleepCheck()
+  }
+  function allowPetInteraction() {
+    syncPetSleep()
+    if (!isPetSleeping()) return true
+    showToast('小伙伴正在睡觉 🌙\n每天 22:30–次日 06:00 暂停宠物互动', true)
+    return false
+  }
+  function renderPetRestNotice() {
+    return '<div class="pet-rest-notice" role="status"><span aria-hidden="true">🌙</span><div><strong>小伙伴睡觉啦，明早 06:00 再见</strong><small>每天 22:30–次日 06:00 暂停喂食、出游、切换和领养，按设备本地时间。</small></div></div>'
+  }
   function updateNav() {
     document.querySelectorAll('[data-view]').forEach(button => {
       const active = button.dataset.view === currentView
@@ -430,7 +472,7 @@
     if (scene === 'park') return `<div class="trip-butterfly" aria-hidden="true"><svg viewBox="0 0 60 50"><g class="butterfly-wings" fill="#edc58c" stroke="#b5976d" stroke-width="2"><path d="M30 26Q-1 4 7 30Q11 48 30 30Q54 51 54 27Q58 1 30 26Z"/></g><path d="M30 21V36M30 22L25 17M30 22L35 16" stroke="#9b805c" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>`
     return `<div class="trip-ball" aria-hidden="true"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="33" fill="#e9bb7c" stroke="#ac8c68" stroke-width="4"/><path d="M40 7Q16 40 40 73M40 7Q66 40 40 73" fill="#a9c7be" stroke="#ac8c68" stroke-width="3"/><path d="M9 29Q39 47 71 29" fill="none" stroke="#fff4d5" stroke-width="5"/></svg></div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
   }
-  function renderAnimatedAnimal(pet) {
+  function renderAnimatedAnimal(pet, sleeping = false) {
     const kind = petKind(pet)
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
     const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
@@ -450,17 +492,19 @@
         ? '<path d="M89 129Q97 91 168 91Q238 90 250 130Q272 173 235 204Q210 227 170 227Q127 228 99 204Q70 174 89 129Z" fill="#e5a86e"/><path d="M138 194Q145 167 170 170Q195 167 204 195Q200 219 170 219Q140 219 138 194Z" fill="#fff4df" stroke="none"/><path d="M155 97L161 115M171 95V118M186 98L181 115" stroke="#bc7d4c" stroke-width="7"/>'
         : '<path d="M89 134Q92 95 128 91Q170 80 212 92Q249 96 252 135L252 176Q246 222 171 226Q97 223 89 179Z" fill="#edc48a"/><path d="M135 191Q139 161 170 165Q202 162 206 190Q202 216 171 217Q139 217 135 191Z" fill="#fff4df" stroke="none"/><path d="M174 91Q204 87 222 102Q243 120 233 143Q214 153 204 130Q196 113 179 111Z" fill="#d6a36c" stroke="none"/>'
     const whiskers = kind === 'cat' ? '<g stroke="#9e704f" stroke-width="2.5"><path d="M104 175L73 168M105 185L73 189M234 175L265 167M234 185L265 189"/></g>' : ''
-    return `<svg class="pet-character pet-character-${kind}" viewBox="0 0 340 340" role="img" aria-label="${escapeHtml(pet.name)}的动态${escapeHtml(pet.species)}形象">
+    return `<svg class="pet-character pet-character-${kind}" viewBox="0 0 340 340" role="img" aria-label="${escapeHtml(pet.name)}${sleeping ? '熟睡的' : '的动态'}${escapeHtml(pet.species)}形象">
       <g stroke="#825e45" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
         <g class="pet-tail">${tail}</g>
         <g class="pet-body"><ellipse cx="170" cy="247" rx="70" ry="64" fill="${fur}"/><ellipse cx="170" cy="259" rx="37" ry="43" fill="${belly}" stroke="none"/><g class="pet-paw pet-paw-back-left"><ellipse cx="120" cy="293" rx="30" ry="16" fill="${fur}"/></g><g class="pet-paw pet-paw-back-right"><ellipse cx="222" cy="293" rx="30" ry="16" fill="${fur}"/></g><g class="pet-paw pet-paw-front-left"><path d="M132 240L128 283Q128 302 145 303Q160 302 160 285L159 249" fill="${belly}"/><path d="M138 291V298M149 291V298" stroke="#c5a78b" stroke-width="2"/></g><g class="pet-paw pet-paw-front-right"><path d="M182 249L181 285Q180 302 197 303Q213 301 211 284L207 241" fill="${belly}"/><path d="M190 291V298M201 291V298" stroke="#c5a78b" stroke-width="2"/></g></g>
         <g class="pet-head">${ears}${head}
           <g class="pet-eyes"><ellipse cx="136" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><ellipse cx="204" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><circle cx="138" cy="150" r="2.7" fill="#fff" stroke="none"/><circle cx="206" cy="150" r="2.7" fill="#fff" stroke="none"/></g>
           <g class="pet-eating-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M127 155Q136 147 145 155M195 155Q204 147 213 155"/></g>
+          <g class="pet-sleep-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M125 153Q136 164 147 153M193 153Q204 164 215 153"/></g>
           <ellipse cx="117" cy="176" rx="12" ry="7" fill="#e8a08c" opacity=".6" stroke="none"/><ellipse cx="224" cy="176" rx="12" ry="7" fill="#e8a08c" opacity=".6" stroke="none"/>
           <path d="M161 171Q170 166 179 171Q180 179 170 183Q160 178 161 171Z" fill="${kind === 'dog' ? '#604333' : '#cf8c83'}" stroke="none"/>
           <g class="pet-mouth-idle"><path d="M170 183V188Q160 199 152 190M170 188Q180 199 188 190" fill="none" stroke-width="3"/>${kind === 'dog' ? '<path d="M166 195V203Q170 210 176 203V195" fill="#de9995" stroke="#b97d78" stroke-width="2"/>' : ''}</g>
           <g class="pet-mouth-chew"><ellipse cx="170" cy="191" rx="9" ry="6" fill="#a36950" stroke-width="2"/>${kind === 'rabbit' ? '<path d="M166 186H174V194H166Z" fill="#fff" stroke="none"/>' : ''}</g>${whiskers}
+          <path class="pet-sleep-mouth" d="M164 193Q170 197 176 193" fill="none" stroke-width="3"/>
         </g>
       </g>
     </svg>`
@@ -469,42 +513,48 @@
     return `<svg viewBox="0 0 150 80" aria-hidden="true"><ellipse cx="75" cy="68" rx="57" ry="8" fill="#a78366" opacity=".2"/><g class="bowl-kibbles" fill="#bb8050" stroke="#93633e" stroke-width="2"><circle cx="43" cy="30" r="8"/><circle cx="60" cy="23" r="8"/><circle cx="77" cy="27" r="9"/><circle cx="95" cy="23" r="8"/><circle cx="110" cy="31" r="8"/><circle cx="59" cy="35" r="8"/><circle cx="89" cy="35" r="9"/></g><path d="M24 32H126L115 61Q75 76 35 61Z" fill="#a8c5b0" stroke="#779883" stroke-width="4"/><ellipse cx="75" cy="32" rx="51" ry="9" fill="none" stroke="#779883" stroke-width="4"/><path d="M69 48Q66 43 62 46Q60 51 69 56Q80 50 77 46Q73 43 69 48Z" fill="#f3edce" stroke="none"/></svg>`
   }
   function renderPets() {
+    const sleeping = isPetSleeping()
+    const restNotice = sleeping ? renderPetRestNotice() : ''
     const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)
-    if (!state.pets.length) return `${heading}<div class="panel empty-state pet-house-empty"><span class="empty-icon">🐾</span><strong>小家在等第一位伙伴</strong><p>完成作业攒积分，领养后就能在这里喂它、陪它玩。</p><button class="primary-button" data-view="shop">去领养小伙伴 →</button></div>`
+    if (!state.pets.length) return `${heading}${restNotice}<div class="panel empty-state pet-house-empty"><span class="empty-icon">🐾</span><strong>小家在等第一位伙伴</strong><p>完成作业攒积分，领养后就能在这里喂它、陪它玩。</p><button class="primary-button" data-view="shop">${sleeping ? '去小铺看看 →' : '去领养小伙伴 →'}</button></div>`
     const pet = state.pets.find(item => item.id === activePetId) || state.pets[0]
     activePetId = pet.id
-    const mode = petAnimation?.petId === pet.id ? petAnimation.type : 'idle'
+    const mode = sleeping ? 'sleeping' : petAnimation?.petId === pet.id ? petAnimation.type : 'idle'
     const scene = mode === 'playing' ? petAnimation.scene : 'home'
     const trip = OUTINGS[scene]
-    const busy = Boolean(petAnimation)
-    const speech = mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? '追到小球啦，再跳一跳！' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
+    const busy = sleeping || Boolean(petAnimation)
+    const lowMood = pet.happiness < 50
+    const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? '追到小球啦，再跳一跳！' : lowMood ? '想先出去玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
     const location = trip ? `${trip.icon} ${pet.name}在${trip.place}` : `${pet.name}的小家`
     const tripStyle = trip ? ` style="--trip-duration:${TRIP_DURATION}ms;--trip-elapsed:-${Math.min(TRIP_DURATION, Math.max(0, Date.now() - petAnimation.startedAt))}ms"` : ''
     const disabled = busy ? 'disabled' : ''
-    return `${heading}<div class="pet-room-layout"><section class="pet-house ${trip ? 'is-on-trip' : ''}" aria-label="${escapeHtml(location)}">
+    return `${heading}${restNotice}<div class="pet-room-layout"><section class="pet-house ${trip ? 'is-on-trip' : ''} ${sleeping ? 'pet-house-sleeping' : ''}" aria-label="${escapeHtml(location)}">
       <header class="house-heading"><div><span class="house-eyebrow">${trip ? 'A LITTLE ADVENTURE' : 'MY COZY HOME'}</span><h2>${escapeHtml(location)} <span>${escapeHtml(pet.species)}</span></h2></div>${trip ? '<button type="button" class="trip-return" data-action="return-home">⌂ 回小家</button>' : `<span class="house-food">🥣 <strong>${state.food}</strong> 份饲料</span>`}</header>
       <div class="pet-room-scene is-${mode} scene-${scene}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}" data-scene="${scene}"${tripStyle}>${trip ? renderOutdoorArtwork(scene) : renderRoomArtwork()}
         <div class="room-vitals"><div class="room-vital"><div><span>🍚 饱饱度</span><strong>${pet.satiety}%</strong></div><div class="room-vital-track"><span style="width:${pet.satiety}%"></span></div></div><div class="room-vital"><div><span>💛 开心度</span><strong>${pet.happiness}%</strong></div><div class="room-vital-track happy"><span style="width:${pet.happiness}%"></span></div></div></div>
         <div class="pet-speech" role="status" aria-live="polite">${speech}</div>
-        <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet)}</div>
+        <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet, sleeping)}</div>${sleeping ? '<div class="pet-sleep-sign" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div><div class="pet-night-moon" aria-hidden="true">☾</div>' : ''}
         ${trip ? renderTripProps(scene) : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
         ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${disabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${disabled}>›</button>` : ''}
-        <span class="room-floor-note">${mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
+        <span class="room-floor-note">${sleeping ? '晚安，明早 06:00 自动醒来' : mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
       </div>
+      ${!sleeping && lowMood ? '<p class="pet-mood-notice">💛 开心度达到 50% 才能喂食。去公园 +18%，宠物乐园 +26%，最高 100%。</p>' : ''}
       <div class="pet-care-dock" aria-label="照顾宠物">
-        ${state.food > 0 || mode === 'eating' ? `<button class="pet-care-button care-feed" data-action="feed-pet" data-id="${escapeHtml(pet.id)}" ${disabled}><span class="care-button-icon">🥣</span><strong>${mode === 'eating' ? '吃饭中…' : '喂食'}</strong><small>消耗 1 份饲料</small></button>` : `<button class="pet-care-button care-feed" data-view="shop" ${disabled}><span class="care-button-icon">🥣</span><strong>买点饲料</strong><small>背包里的饲料用完啦</small></button>`}
+        ${sleeping || lowMood || state.food > 0 || mode === 'eating' ? `<button class="pet-care-button care-feed" data-action="feed-pet" data-id="${escapeHtml(pet.id)}" ${busy || lowMood ? 'disabled' : ''}><span class="care-button-icon">${sleeping ? '🌙' : '🥣'}</span><strong>${sleeping ? '睡觉中' : lowMood ? '先哄开心' : mode === 'eating' ? '吃饭中…' : '喂食'}</strong><small>${sleeping ? '06:00 后再来喂食' : lowMood ? '开心度需至少 50%' : '消耗 1 份饲料'}</small></button>` : `<button class="pet-care-button care-feed" data-view="shop" ${disabled}><span class="care-button-icon">🥣</span><strong>买点饲料</strong><small>背包里的饲料用完啦</small></button>`}
         <button class="pet-care-button care-walk" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="park" ${disabled}><span class="care-button-icon">🌳</span><strong>${scene === 'park' ? '散步中…' : '去公园'}</strong><small>10 积分</small></button>
         <button class="pet-care-button care-play" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="playground" ${disabled}><span class="care-button-icon">🎠</span><strong>${scene === 'playground' ? '玩耍中…' : '宠物乐园'}</strong><small>20 积分</small></button>
       </div>
-    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${disabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
+    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${disabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
   }
 
   function selectPet(id) {
+    if (!allowPetInteraction()) return
     if (petAnimation || !state.pets.some(pet => pet.id === id)) return
     activePetId = id
     render()
   }
   function cyclePet(direction) {
+    if (!allowPetInteraction()) return
     if (petAnimation || state.pets.length < 2) return
     const index = Math.max(0, state.pets.findIndex(pet => pet.id === activePetId))
     selectPet(state.pets[(index + direction + state.pets.length) % state.pets.length].id)
@@ -513,10 +563,11 @@
     clearTimeout(petAnimationTimer)
     petAnimationTimer = setTimeout(() => {
       petAnimation = null
-      if (currentView === 'pets') { render(); showToast(message) }
+      if (currentView === 'pets') { render(); if (!isPetSleeping()) showToast(message) }
     }, duration)
   }
   function returnPetHome() {
+    if (!allowPetInteraction()) return
     if (petAnimation?.type !== 'playing') return
     clearTimeout(petAnimationTimer)
     const pet = state.pets.find(item => item.id === petAnimation.petId)
@@ -526,8 +577,9 @@
   }
 
   function renderShop() {
-    const products = CATALOG.map(product => `<article class="panel product-card"><div class="product-art ${product.art}"><span>${product.emoji}</span><span class="product-heart">♥</span></div><h3 class="product-name">${product.name}</h3><p class="product-intro">${product.intro}</p><div class="product-bottom"><span class="product-price">✦ ${product.price}</span>${state.points >= product.price ? `<button class="primary-button button-small" data-action="adopt" data-id="${product.id}">领养</button>` : `<span class="need-more">还差 ${product.price - state.points} 分</span>`}</div></article>`).join('')
-    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备好吃的。')}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section><p class="shop-footnote">积分来自完成作业打卡和大人额外奖励。宠物和饲料都是网页里的虚拟物品 🐾</p>`
+    const sleeping = isPetSleeping()
+    const products = CATALOG.map(product => `<article class="panel product-card"><div class="product-art ${product.art}"><span>${product.emoji}</span><span class="product-heart">♥</span></div><h3 class="product-name">${product.name}</h3><p class="product-intro">${product.intro}</p><div class="product-bottom"><span class="product-price">✦ ${product.price}</span>${sleeping ? '<button class="primary-button button-small" disabled>06:00 后领养</button>' : state.points >= product.price ? `<button class="primary-button button-small" data-action="adopt" data-id="${product.id}">领养</button>` : `<span class="need-more">还差 ${product.price - state.points} 分</span>`}</div></article>`).join('')
+    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备好吃的。')}${sleeping ? renderPetRestNotice() : ''}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section><p class="shop-footnote">积分来自完成作业打卡和大人额外奖励。宠物和饲料都是网页里的虚拟物品 🐾</p>`
   }
 
   function commit(message) {
@@ -710,6 +762,7 @@
     }
   }
   function adoptPet(productId) {
+    if (!allowPetInteraction()) return
     const product = CATALOG.find(item => item.id === productId)
     if (!product) return
     if (state.points < product.price) return showInsufficientPoints(product.price)
@@ -728,9 +781,12 @@
     commit('饲料放进背包啦')
   }
   function feedPet(id) {
+    if (!allowPetInteraction()) return
     if (petAnimation) return
     const pet = state.pets.find(item => item.id === id)
-    if (!pet || state.food < 1) return showToast('背包里没有饲料啦')
+    if (!pet) return
+    if (pet.happiness < 50) return showToast('开心度不足 50%，暂时不能喂食。\n先去公园或宠物乐园，让小伙伴开心起来吧', true)
+    if (state.food < 1) return showToast('背包里没有饲料啦')
     state.food -= 1
     pet.satiety = Math.min(100, pet.satiety + 32)
     pet.happiness = Math.min(100, pet.happiness + 6)
@@ -741,6 +797,7 @@
     finishPetAnimation(3700, `${pet.name}吃饱啦，谢谢你！`)
   }
   function playPet(id, destination) {
+    if (!allowPetInteraction()) return
     if (petAnimation) return
     const pet = state.pets.find(item => item.id === id)
     const outing = OUTINGS[destination]
@@ -963,5 +1020,9 @@
     }
   })
 
+  window.addEventListener('focus', syncPetSleep)
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPetSleep() })
+  setInterval(syncPetSleep, 30000)
+  schedulePetSleepCheck()
   render()
 })()
