@@ -437,7 +437,7 @@
     return false
   }
   function renderPetRestNotice() {
-    return '<div class="pet-rest-notice" role="status"><span aria-hidden="true">🌙</span><div><strong>小伙伴睡觉啦，明早 06:00 再见</strong><small>每天 22:30–次日 06:00 暂停喂食、出游、切换和领养，按设备本地时间。</small></div></div>'
+    return '<div class="pet-rest-notice" role="status"><span aria-hidden="true">🌙</span><div><strong>小伙伴睡觉啦，明早 06:00 再见</strong><small>每天 22:30–次日 06:00 暂停喂食、出游和领养；可以切换查看睡觉中的伙伴。按设备本地时间。</small></div></div>'
   }
   function updateNav() {
     document.querySelectorAll('[data-view]').forEach(button => {
@@ -658,6 +658,7 @@
     const location = trip ? `${trip.icon} ${pet.name}在${theme[scene]}` : `${pet.name}的${theme.home}`
     const tripStyle = trip ? ` style="--trip-duration:${TRIP_DURATION}ms;--trip-elapsed:-${Math.min(TRIP_DURATION, Math.max(0, Date.now() - petAnimation.startedAt))}ms"` : ''
     const disabled = busy ? 'disabled' : ''
+    const switchDisabled = petAnimation ? 'disabled' : ''
     return `${heading}${restNotice}<div class="pet-room-layout"><section class="pet-house ${trip ? 'is-on-trip' : ''} ${sleeping ? 'pet-house-sleeping' : ''}" aria-label="${escapeHtml(location)}">
       <header class="house-heading"><div><span class="house-eyebrow">${trip ? 'A LITTLE ADVENTURE' : 'MY COZY HOME'}</span><h2>${escapeHtml(location)} <span>${escapeHtml(pet.species)}</span></h2></div>${trip ? '<button type="button" class="trip-return" data-action="return-home">⌂ 回小家</button>' : `<span class="house-food">🥣 <strong>${state.food}</strong> 份饲料</span>`}</header>
       <div class="pet-room-scene is-${mode} scene-${scene}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}" data-scene="${scene}"${tripStyle}>${trip ? renderOutdoorArtwork(scene, kind) : renderRoomArtwork(kind)}
@@ -665,7 +666,7 @@
         <div class="pet-speech" role="status" aria-live="polite">${speech}</div>
         <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet, sleeping)}</div>${sleeping ? '<div class="pet-sleep-sign" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div><div class="pet-night-moon" aria-hidden="true">☾</div>' : ''}
         ${trip ? renderTripProps(scene, kind) : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
-        ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${disabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${disabled}>›</button>` : ''}
+        ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${switchDisabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${switchDisabled}>›</button>` : ''}
         <span class="room-floor-note">${sleeping ? '晚安，明早 06:00 自动醒来' : mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
       </div>
       ${!sleeping && lowMood ? '<p class="pet-mood-notice">💛 开心度达到 50% 才能喂食。去公园 +18%，宠物乐园 +26%，最高 100%。</p>' : ''}
@@ -674,18 +675,18 @@
         <button class="pet-care-button care-walk" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="park" ${disabled}><span class="care-button-icon">🌳</span><strong>${scene === 'park' ? '散步中…' : '去公园'}</strong><small>10 积分</small></button>
         <button class="pet-care-button care-play" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="playground" ${disabled}><span class="care-button-icon">🎠</span><strong>${scene === 'playground' ? '玩耍中…' : '宠物乐园'}</strong><small>20 积分</small></button>
       </div>
-    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${disabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
+    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${switchDisabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
   }
 
   function selectPet(id) {
-    if (!allowPetInteraction()) return
+    syncPetSleep()
     if (petAnimation || !state.pets.some(pet => pet.id === id)) return
     activePetId = id
     render()
     document.querySelector('.pet-house')?.scrollIntoView({ block: 'start', behavior: 'instant' })
   }
   function cyclePet(direction) {
-    if (!allowPetInteraction()) return
+    syncPetSleep()
     if (petAnimation || state.pets.length < 2) return
     const index = Math.max(0, state.pets.findIndex(pet => pet.id === activePetId))
     selectPet(state.pets[(index + direction + state.pets.length) % state.pets.length].id)
