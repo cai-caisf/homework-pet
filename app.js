@@ -802,7 +802,7 @@
   }
   function openParentReward(opener) {
     if (actionDialog.open) return
-    dialogFlow = { stage: 'gate', passed: 0, question: newParentQuestion(), error: '' }
+    dialogFlow = { stage: 'gate', question: newParentQuestion(), error: '' }
     renderParentGate()
     showActionDialog(opener)
     actionDialog.querySelector('#parent-answer')?.focus()
@@ -812,7 +812,7 @@
     if (dialogFlow?.stage !== 'gate') return
     const guard = readParentGuard()
     const remaining = Math.max(0, Math.ceil((guard.blockedUntil - Date.now()) / 1000))
-    dialogContent('请大人来发奖励', '连续答对 2 道随机计算题后，即可填写额外奖励。', `${remaining ? `<div class="gate-pause" role="status"><strong>先休息一下</strong><p>连续答错 3 次，请 ${remaining} 秒后再试。</p></div>` : `<div class="gate-progress"><span class="${dialogFlow.passed > 0 ? 'passed' : ''}">1</span><i></i><span>2</span><small>第 ${dialogFlow.passed + 1} / 2 题</small></div><form id="parent-gate-form"><label class="math-question" for="parent-answer">${dialogFlow.question.label} = ?</label><label><span class="field-label">计算结果</span><input id="parent-answer" class="text-input parent-answer" name="answer" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="8" placeholder="请由大人填写答案" autocomplete="off" required></label><p id="gate-error" class="dialog-error" role="alert">${escapeHtml(dialogFlow.error)}</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">取消</button><button type="submit" class="primary-button">${dialogFlow.passed ? '验证并继续' : '下一题 →'}</button></div></form>`}<p class="dialog-note">计算题用于防止随手操作，无法代替家长密码；会计算或使用计算器的孩子仍可能通过。</p>`)
+    dialogContent('请大人来发奖励', '答对 1 道随机计算题后，即可填写额外奖励。', `${remaining ? `<div class="gate-pause" role="status"><strong>先休息一下</strong><p>连续答错 3 次，请 ${remaining} 秒后再试。</p></div>` : `<div class="gate-progress"><span>1</span><small>只需答对这一题</small></div><form id="parent-gate-form"><label class="math-question" for="parent-answer">${dialogFlow.question.label} = ?</label><label><span class="field-label">计算结果</span><input id="parent-answer" class="text-input parent-answer" name="answer" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="8" placeholder="请由大人填写答案" autocomplete="off" required></label><p id="gate-error" class="dialog-error" role="alert">${escapeHtml(dialogFlow.error)}</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">取消</button><button type="submit" class="primary-button">验证并继续</button></div></form>`}<p class="dialog-note">计算题用于防止随手操作，无法代替家长密码；会计算或使用计算器的孩子仍可能通过。</p>`)
     if (remaining) parentGateTimer = setInterval(renderParentGate, 1000)
     else if (actionDialog.open) actionDialog.querySelector('#parent-answer').focus()
   }
@@ -825,25 +825,18 @@
     if (Number(answer) !== dialogFlow.question.answer) {
       const failures = guard.failures + 1
       if (!writeParentGuard({ failures: failures >= 3 ? 0 : failures, blockedUntil: failures >= 3 ? Date.now() + 30000 : 0 })) return
-      dialogFlow.passed = 0
       dialogFlow.question = newParentQuestion()
-      dialogFlow.error = `答案不对，需要重新连续答对 2 题。再答错 ${3 - failures} 次将暂停 30 秒。`
+      dialogFlow.error = `答案不对，请重新答题。再答错 ${3 - failures} 次将暂停 30 秒。`
       return renderParentGate()
     }
-    dialogFlow.passed += 1
-    if (dialogFlow.passed < 2) {
-      dialogFlow.question = newParentQuestion()
-      dialogFlow.error = ''
-      return renderParentGate()
-    }
-    if (!writeParentGuard({ failures: 0, blockedUntil: 0 })) { dialogFlow.passed = 0; return }
+    if (!writeParentGuard({ failures: 0, blockedUntil: 0 })) return
     dialogFlow = { stage: 'bonus', expiresAt: Date.now() + 5 * 60 * 1000, points: '', reason: '' }
     renderBonusForm()
   }
   function bonusAuthorized() {
     if (!['bonus', 'bonus-confirm'].includes(dialogFlow?.stage)) return false
     if (dialogFlow.expiresAt > Date.now() && readParentGuard().blockedUntil <= Date.now()) return true
-    dialogFlow = { stage: 'gate', passed: 0, question: newParentQuestion(), error: '验证已过期，请大人重新答题。' }
+    dialogFlow = { stage: 'gate', question: newParentQuestion(), error: '验证已过期，请大人重新答题。' }
     renderParentGate()
     return false
   }
