@@ -44,6 +44,8 @@
   let processingPhotos = false
   let savingTask = false
   let backupBusy = false
+  let preparedBackup = null
+  let backupShareBusy = false
   let viewerPhotos = []
   let viewerIndex = 0
   let viewerZoom = 1
@@ -1023,10 +1025,14 @@
     return new Blob([bytes], { type: header.slice(5, header.indexOf(';')) })
   }
   async function exportBackup() {
-    if (backupBusy || savingTask) return
+    if (backupBusy || savingTask || processingPhotos || actionDialog.open) return
     backupBusy = true
     const button = document.querySelector('[data-action="export"]')
     button.disabled = true
+    dialogFlow = { stage: 'backup-export' }
+    const flow = dialogFlow
+    dialogContent('正在准备备份', '正在整理作业、积分、宠物和照片，请稍等。', '<p id="backup-status" class="backup-status" role="status">准备好后，可以选择保存文件或复制备份内容。</p>')
+    showActionDialog(button)
     try {
       const snapshot = structuredClone(state)
       const photos = []
@@ -1036,35 +1042,97 @@
         if (!record?.blob) { missing += 1; continue }
         photos.push({ id, name: record.name, dataUrl: await blobDataUrl(record.blob) })
       }
-      const blob = new Blob([JSON.stringify({ format: 'homework-pet-web', version: 2, exportedAt: new Date().toISOString(), data: snapshot, photos }, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `作业小宠物备份-${new Date().toISOString().slice(0, 10)}.json`
-      document.body.append(link)
-      link.click()
-      link.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-      showToast(missing ? `备份已下载，另有 ${missing} 张照片在本机未找到` : '备份已下载，包含作业照片')
+      const now = new Date()
+      const text = JSON.stringify({ format: 'homework-pet-web', version: 2, exportedAt: now.toISOString(), data: snapshot, photos }, null, 2)
+      const filename = `作业小宠物备份-${localDateKey(now)}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}.json`
+      const file = new File([text], filename, { type: 'application/json' })
+      const url = URL.createObjectURL(file)
+      if (preparedBackup) URL.revokeObjectURL(preparedBackup.url)
+      preparedBackup = { text, file, url, filename, missing, photoCount: photos.length, tasks: snapshot.tasks.length, pets: snapshot.pets.length, points: snapshot.points }
+      if (dialogFlow === flow && actionDialog.open) renderBackupExport()
     } catch (_) {
-      showToast('备份失败，请检查浏览器存储权限后重试')
+      if (dialogFlow === flow && actionDialog.open) backupStatus('备份准备失败，请关闭弹窗后重试。原有记录仍保存在本机。', true)
+      else showToast('备份准备失败，请重试')
     } finally {
       backupBusy = false
       button.disabled = false
     }
   }
-  async function importBackup(file) {
-    if (!file || backupBusy || processingPhotos || savingTask) return
-    backupBusy = true
-    let newPhotos = []
-    let previousState
+  function canShareBackup(file) {
+    try { return typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] }) }
+    catch (_) { return false }
+  }
+  function backupStatus(message, error = false) {
+    const status = actionDialog.querySelector('#backup-status')
+    if (status) { status.textContent = message; status.classList.toggle('backup-error', error) }
+    else showToast(message, error)
+  }
+  function renderBackupExport() {
+    const backup = preparedBackup
+    if (!backup || dialogFlow?.stage !== 'backup-export') return
+    const size = backup.file.size < 1024 * 1024 ? `${Math.max(1, Math.ceil(backup.file.size / 1024))} KB` : `${(backup.file.size / (1024 * 1024)).toFixed(1)} MB`
+    dialogContent('把备份保存好', '备份内容已准备好，请选择一种方式保存。', `<div class="backup-summary"><strong>${escapeHtml(backup.filename)}</strong><span>${backup.tasks} 项作业 · ${backup.pets} 只宠物 · ${backup.points} 积分</span><small>包含 ${backup.photoCount} 张照片，以及饲料、玩具和零食库存 · ${size}</small></div>${backup.missing ? `<p class="backup-warning">有 ${backup.missing} 张作业照片在本机未找到，本次备份不包含这些照片。</p>` : ''}<div class="backup-options">${canShareBackup(backup.file) ? '<button type="button" class="primary-button" data-action="share-backup">保存到文件 / 分享</button><p>iPhone / iPad：在系统面板中选择“存储到‘文件’”，选好文件夹后再点“存储”。</p>' : ''}<a class="outline-button backup-download" href="${escapeHtml(backup.url)}" download="${escapeHtml(backup.filename)}" data-action="download-backup">下载 JSON 文件</a><button type="button" class="outline-button" data-action="copy-backup">复制备份内容</button></div><p class="dialog-note">没有“文件”App？可以复制后粘贴到“备忘录”保存。恢复时，在“恢复备份”里粘贴完整内容即可，照片也包含在内容中。内容较长时优先保存 JSON 文件；复制保存时请勿编辑或截断。</p><div id="backup-copy-panel" class="backup-copy-panel" hidden><label for="backup-copy-text">完整备份内容（也可长按全选复制）</label><textarea id="backup-copy-text" class="backup-textarea" readonly spellcheck="false" autocapitalize="off" aria-label="完整备份内容"></textarea></div><p id="backup-status" class="backup-status" role="status">出现下载提示不代表已保存。请确认文件能打开，或备忘录中已保留完整备份内容。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">关闭</button></div>`)
+  }
+  async function shareBackup() {
+    if (dialogFlow?.stage !== 'backup-export' || !preparedBackup || backupShareBusy) return
+    if (!canShareBackup(preparedBackup.file)) return backupStatus('此浏览器不能直接打开文件分享面板，请下载 JSON 文件或复制备份内容。', true)
+    const flow = dialogFlow
+    const button = actionDialog.querySelector('[data-action="share-backup"]')
+    backupShareBusy = true
+    if (button) button.disabled = true
+    backupStatus('请在系统面板中选择“存储到‘文件’”，并完成存储。')
     try {
-      const parsed = JSON.parse(await file.text())
+      // Invoke directly from this tap, after all asynchronous preparation has finished.
+      await navigator.share({ files: [preparedBackup.file] })
+      if (dialogFlow === flow) backupStatus('请到刚才选择的位置确认文件能打开。网页无法判断系统是否已完成存储。')
+    } catch (error) {
+      if (dialogFlow === flow) backupStatus(error?.name === 'AbortError' ? '已取消保存，备份内容仍在这里，可以重试或复制。' : '系统保存面板未能完成，请尝试下载 JSON 文件或复制备份内容。', error?.name !== 'AbortError')
+    } finally {
+      backupShareBusy = false
+      if (button?.isConnected) button.disabled = false
+    }
+  }
+  async function copyBackup() {
+    if (dialogFlow?.stage !== 'backup-export' || !preparedBackup) return
+    const flow = dialogFlow
+    const panel = actionDialog.querySelector('#backup-copy-panel')
+    const field = actionDialog.querySelector('#backup-copy-text')
+    panel.hidden = false
+    field.value = preparedBackup.text
+    field.focus()
+    field.select()
+    field.setSelectionRange(0, field.value.length)
+    try {
+      // The selected textarea also supports older iPhone copy implementations.
+      let copied = false
+      try { copied = document.execCommand('copy') } catch (_) { /* Try the modern clipboard API next. */ }
+      if (!copied) {
+        if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
+        await navigator.clipboard.writeText(preparedBackup.text)
+      }
+      if (dialogFlow === flow) backupStatus('已复制。请打开“备忘录”，新建一条备忘录并粘贴完整内容，确认已保存后再关闭。')
+    } catch (_) {
+      if (dialogFlow === flow) backupStatus('请长按上方内容，选择“全选 → 复制”，再粘贴到“备忘录”保存。')
+    }
+  }
+  function openBackupImport(opener) {
+    if (backupBusy || actionDialog.open) return
+    dialogFlow = { stage: 'backup-import' }
+    dialogContent('恢复备份', '选择之前保存的备份文件，或粘贴从备忘录复制的完整备份内容。', '<div class="backup-options"><button type="button" class="primary-button backup-import-control" data-action="choose-backup-file">选择备份文件</button></div><div class="backup-divider">也可以粘贴备份内容</div><form id="backup-text-form"><label for="backup-import-text">完整备份内容</label><textarea id="backup-import-text" name="backupText" class="backup-textarea backup-import-control" placeholder="在这里长按粘贴之前保存的完整备份内容" spellcheck="false" autocapitalize="off" required></textarea><p id="backup-status" class="backup-status" role="status">恢复会替换当前记录。若当前有需要保留的新记录，请先下载一份备份。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">取消</button><button type="submit" class="primary-button backup-import-control">核对并恢复</button></div></form>')
+    showActionDialog(opener)
+  }
+  async function importBackup(file) {
+    if (!file || backupBusy || processingPhotos || savingTask || dialogFlow?.stage !== 'backup-import') return
+    const flow = dialogFlow
+    backupBusy = true
+    actionDialog.querySelectorAll('.backup-import-control').forEach(control => { control.disabled = true })
+    try {
+      const parsed = JSON.parse((await file.text()).trim())
       const backup = parsed?.data && typeof parsed.data === 'object' ? parsed.data : parsed
       if (!backup || !Array.isArray(backup.tasks) || !Array.isArray(backup.pets) || !Number.isFinite(Number(backup.points))) throw new Error('invalid')
       const nextState = normalizeState(backup)
       const attachments = new Map((Array.isArray(parsed.photos) ? parsed.photos : []).filter(photo => photo && typeof photo.id === 'string').map(photo => [photo.id, photo]))
-      const replacementIds = new Map()
+      const replacementIds = new Map(), newPhotos = []
       let missing = 0
       for (const id of referencedPhotoIds(nextState)) {
         const attachment = attachments.get(id)
@@ -1075,27 +1143,52 @@
         newPhotos.push({ id: newId, blob: record.blob, name: String(record.name || '作业照片').slice(0, 100) })
       }
       nextState.tasks.forEach(task => { task.photos = task.photos.filter(photo => replacementIds.has(photo.id)).map(photo => ({ ...photo, id: replacementIds.get(photo.id) })) })
-      if (!window.confirm(`导入会替换此浏览器里的当前数据。${missing ? `备份中缺少 ${missing} 张照片，这些照片无法恢复。` : ''}确定继续吗？`)) return
+      if (dialogFlow !== flow || !actionDialog.open) return
+      dialogFlow = { stage: 'backup-confirm', nextState, newPhotos, missing }
+      dialogContent('确认恢复这份备份？', '确认后，当前浏览器中的记录会被这份备份替换。', `<div class="backup-summary"><strong>${escapeHtml(file.name || '粘贴的备份内容')}</strong><span>${nextState.tasks.length} 项作业 · ${nextState.pets.length} 只宠物 · ${nextState.points} 积分</span><small>将恢复 ${newPhotos.length} 张照片，以及备份中的饲料、玩具和零食库存。</small></div>${missing ? `<p class="backup-warning">备份缺少 ${missing} 张照片，这些照片无法恢复；其余记录可正常恢复。</p>` : ''}<p id="backup-status" class="backup-status" role="status">若当前有需要保留的新记录，请取消并先备份。取消不会修改任何记录。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">取消恢复</button><button type="button" class="primary-button" data-action="confirm-backup-restore">确认替换并恢复</button></div>`)
+    } catch (_) {
+      if (dialogFlow === flow) backupStatus('备份无法恢复，请选择有效的 JSON 备份文件，或粘贴完整备份内容。当前记录未改变。', true)
+    } finally {
+      backupBusy = false
+      importFile.value = ''
+      actionDialog.querySelectorAll('.backup-import-control').forEach(control => { control.disabled = false })
+    }
+  }
+  async function applyBackupRestore() {
+    if (backupBusy || dialogFlow?.stage !== 'backup-confirm') return
+    const flow = dialogFlow
+    const { nextState, newPhotos, missing } = flow
+    const controls = [...actionDialog.querySelectorAll('button')]
+    controls.forEach(control => { control.disabled = true })
+    backupBusy = true
+    backupStatus('正在恢复，请稍等。')
+    let previousState
+    try {
       await writePhotoRecords(newPhotos)
       previousState = state
       state = nextState
       if (!saveState()) {
         state = previousState
         await writePhotoRecords([], newPhotos.map(photo => photo.id)).catch(() => {})
+        backupStatus('存储空间不足，未恢复备份；当前记录已保留。请腾出浏览器存储空间后再试。', true)
         return
       }
       await writePhotoRecords([], referencedPhotoIds(previousState)).catch(() => {})
       releasePhotoUrls()
       clearTaskDraft()
+      clearTimeout(petAnimationTimer)
+      petAnimation = null
+      activePetId = ''
+      actionDialog.close()
       render()
-      showToast(missing ? '记录已恢复，部分照片在备份中缺失' : '备份恢复成功，作业照片已恢复')
+      showToast(missing ? '记录已恢复，部分照片在备份中缺失' : '备份恢复成功，照片和库存已恢复')
     } catch (_) {
       if (previousState) state = previousState
-      if (newPhotos.length) await writePhotoRecords([], newPhotos.map(photo => photo.id)).catch(() => {})
-      showToast('备份无法恢复，请检查文件格式和浏览器存储空间')
+      await writePhotoRecords([], newPhotos.map(photo => photo.id)).catch(() => {})
+      backupStatus('恢复未完成，当前记录已保留。请检查浏览器存储空间后重试。', true)
     } finally {
       backupBusy = false
-      importFile.value = ''
+      controls.forEach(control => { if (control.isConnected) control.disabled = false })
     }
   }
   async function resetData() {
@@ -1162,7 +1255,12 @@
     if (action === 'play-pet') playPet(button.dataset.id, button.dataset.destination)
     if (action === 'return-home') returnPetHome()
     if (action === 'export') exportBackup()
-    if (action === 'import') importFile.click()
+    if (action === 'import') openBackupImport(button)
+    if (action === 'choose-backup-file') importFile.click()
+    if (action === 'confirm-backup-restore') applyBackupRestore()
+    if (action === 'share-backup') shareBackup()
+    if (action === 'copy-backup') copyBackup()
+    if (action === 'download-backup') backupStatus('已请求浏览器下载，请在下载提示中确认。找到并能打开文件后，才算保存成功。')
     if (action === 'reset') resetData()
     if (action === 'take-task-photo') cameraInput.click()
     if (action === 'choose-task-photos') photoInput.click()
@@ -1182,11 +1280,15 @@
   })
   document.addEventListener('submit', event => {
     const form = event.target
-    if (!['task-form', 'parent-gate-form', 'bonus-form'].includes(form.id)) return
+    if (!['task-form', 'parent-gate-form', 'bonus-form', 'backup-text-form'].includes(form.id)) return
     event.preventDefault()
     if (form.id === 'task-form') addTask(form)
     if (form.id === 'parent-gate-form') verifyParentAnswer(form)
     if (form.id === 'bonus-form') reviewBonus(form)
+    if (form.id === 'backup-text-form') {
+      const content = String(new FormData(form).get('backupText') || '').trim()
+      if (content) importBackup({ text: async () => content })
+    }
   })
   document.addEventListener('input', event => {
     if (event.target.closest('#task-form') && ['title', 'subject', 'reward', 'startTime', 'endTime'].includes(event.target.name)) taskDraft[event.target.name] = event.target.value
@@ -1202,6 +1304,7 @@
   importFile.addEventListener('change', event => importBackup(event.target.files?.[0]))
   cameraInput.addEventListener('change', event => addDraftPhotos(event.target.files))
   photoInput.addEventListener('change', event => addDraftPhotos(event.target.files))
+  actionDialog.addEventListener('cancel', event => { if (backupBusy && dialogFlow?.stage === 'backup-confirm') event.preventDefault() })
   actionDialog.addEventListener('close', () => {
     clearInterval(parentGateTimer)
     dialogFlow = null
