@@ -8,6 +8,14 @@
     { id: 'rabbit', species: '兔兔', name: '小兔', nameBase: '跳跳', emoji: '🐰', intro: '蹦蹦跳跳，喜欢胡萝卜', price: 60, art: 'rabbit' }
   ]
   const FOOD_PRICE = 20
+  const SUPPLY_PRICE = 50
+  const TOY_HAPPINESS = 20
+  const SNACK_SATIETY = 25
+  const PET_SUPPLIES = {
+    dog: { toy: '骨头响响玩具', snack: '骨头饼干', play: '抱住小骨头，摇摇尾巴真开心～', eat: '咔嚓咔嚓，骨头饼干真香～' },
+    cat: { toy: '毛线球', snack: '小鱼饼干', play: '扑一扑，毛线球别跑呀～', eat: '喵呜，小鱼饼干真好吃～' },
+    rabbit: { toy: '萝卜滚滚球', snack: '鲜嫩菜叶', play: '蹦蹦跳跳，推一推萝卜球～', eat: '嚼一嚼，菜叶脆脆甜甜～' }
+  }
   const TRIP_DURATION = 12000
   const OUTINGS = {
     park: { cost: 10, name: '公园散步', place: '公园', icon: '🌳', happiness: 18 },
@@ -52,7 +60,8 @@
   let dialogOpener = null
   let parentGateTimer = 0
 
-  const emptyState = () => ({ points: 0, tasks: [], pets: [], food: 0, activityLog: [], bonusRewards: [] })
+  const emptySupplies = () => Object.fromEntries(CATALOG.map(item => [item.id, { toy: false, snacks: 0 }]))
+  const emptyState = () => ({ points: 0, tasks: [], pets: [], food: 0, supplies: emptySupplies(), activityLog: [], bonusRewards: [] })
   const makeId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`)
 
   function loadState() {
@@ -84,6 +93,7 @@
           happiness: clamp(item.happiness, 0, 100, 72), satiety: clamp(item.satiety, 0, 100, 75), playCount: nonNegativeInt(item.playCount)
         })) : [],
         food: nonNegativeInt(saved.food),
+        supplies: Object.fromEntries(CATALOG.map(item => [item.id, { toy: saved.supplies?.[item.id]?.toy === true, snacks: nonNegativeInt(saved.supplies?.[item.id]?.snacks) }])),
         activityLog: Array.isArray(saved.activityLog) ? saved.activityLog.filter(item => item && typeof item.message === 'string').slice(0, 20).map(item => ({ id: String(item.id || makeId()), message: item.message.slice(0, 120), stamp: String(item.stamp || '') })) : [],
         bonusRewards: Array.isArray(saved.bonusRewards) ? saved.bonusRewards.filter(item => item && isValidReward(item.points) && Number(item.points) <= MAX_BONUS && typeof item.reason === 'string').slice(0, 100).map(item => ({ id: String(item.id || makeId()), points: Number(item.points), reason: item.reason.slice(0, 60), stamp: String(item.stamp || '') })) : []
     }
@@ -437,7 +447,7 @@
     return false
   }
   function renderPetRestNotice() {
-    return '<div class="pet-rest-notice" role="status"><span aria-hidden="true">🌙</span><div><strong>小伙伴睡觉啦，明早 06:00 再见</strong><small>每天 22:30–次日 06:00 暂停喂食、出游和领养；可以切换查看睡觉中的伙伴。按设备本地时间。</small></div></div>'
+    return '<div class="pet-rest-notice" role="status"><span aria-hidden="true">🌙</span><div><strong>小伙伴睡觉啦，明早 06:00 再见</strong><small>每天 22:30–次日 06:00 暂停喂食、零食、玩具互动、出游和领养；可以切换查看睡觉中的伙伴。按设备本地时间。</small></div></div>'
   }
   function updateNav() {
     document.querySelectorAll('[data-view]').forEach(button => {
@@ -640,6 +650,14 @@
   function renderFoodBowl() {
     return `<svg viewBox="0 0 150 80" aria-hidden="true"><ellipse cx="75" cy="68" rx="57" ry="8" fill="#a78366" opacity=".2"/><g class="bowl-kibbles" fill="#bb8050" stroke="#93633e" stroke-width="2"><circle cx="43" cy="30" r="8"/><circle cx="60" cy="23" r="8"/><circle cx="77" cy="27" r="9"/><circle cx="95" cy="23" r="8"/><circle cx="110" cy="31" r="8"/><circle cx="59" cy="35" r="8"/><circle cx="89" cy="35" r="9"/></g><path d="M24 32H126L115 61Q75 76 35 61Z" fill="#a8c5b0" stroke="#779883" stroke-width="4"/><ellipse cx="75" cy="32" rx="51" ry="9" fill="none" stroke="#779883" stroke-width="4"/><path d="M69 48Q66 43 62 46Q60 51 69 56Q80 50 77 46Q73 43 69 48Z" fill="#f3edce" stroke="none"/></svg>`
   }
+  function renderPetSupplies(pet, busy, lowMood) {
+    const kind = petKind(pet), items = PET_SUPPLIES[kind], bag = state.supplies[kind]
+    const sleeping = isPetSleeping(), mode = petAnimation?.petId === pet.id ? petAnimation.type : ''
+    return `<section class="pet-supplies" aria-label="${escapeHtml(pet.name)}的玩具和零食"><div class="section-title"><h2>专属玩具与零食</h2><span class="section-note">${escapeHtml(pet.species)}专用 · 每件 50 积分</span></div><div class="pet-supply-grid">
+      <div class="pet-supply-row"><div class="supply-icon" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="supply-copy"><strong>${items.toy}</strong><small>开心度 +${TOY_HAPPINESS} · 可反复玩</small><em>${bag.toy ? '已放入背包，同类伙伴共用' : '购买一次，解锁陪玩'}</em></div>${bag.toy ? `<button class="secondary-button button-small" data-action="use-supply" data-item="toy" data-id="${escapeHtml(pet.id)}" ${busy ? 'disabled' : ''}>${sleeping ? '睡觉中' : mode === 'toy' ? '玩耍中…' : '使用玩具'}</button>` : `<button class="primary-button button-small" data-action="buy-supply" data-kind="${kind}" data-item="toy">购买 · 50分</button>`}</div>
+      <div class="pet-supply-row"><div class="supply-icon snack-icon" aria-hidden="true">${window.PetArtwork.snack(kind)}</div><div class="supply-copy"><strong>${items.snack}</strong><small>饱饱度 +${SNACK_SATIETY} · 每次 1 份</small><em>背包里还有 ${bag.snacks} 份</em></div><div class="supply-actions"><button class="secondary-button button-small" data-action="use-supply" data-item="snack" data-id="${escapeHtml(pet.id)}" ${busy || lowMood || bag.snacks < 1 || pet.satiety >= 100 ? 'disabled' : ''}>${sleeping ? '睡觉中' : mode === 'snacking' ? '吃零食中…' : lowMood ? '先哄开心' : pet.satiety >= 100 ? '已经吃饱' : '喂零食'}</button><button class="quiet-button" data-action="buy-supply" data-kind="${kind}" data-item="snack">${bag.snacks ? '再买一份' : '购买一份'} · 50分</button></div></div>
+      </div><p class="supply-note">玩具和零食只给对应动物使用；数值最高 100%。睡觉时可以购买，醒来后再一起玩。</p></section>`
+  }
   function renderPets() {
     const sleeping = isPetSleeping()
     const restNotice = sleeping ? renderPetRestNotice() : ''
@@ -654,7 +672,8 @@
     const lowMood = pet.happiness < 50
     const kind = petKind(pet)
     const theme = window.PetArtwork.themes[kind]
-    const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? (kind === 'cat' ? '扑一扑毛线球，玩得真开心～' : kind === 'rabbit' ? '蹦蹦跳跳，玩一玩小萝卜球～' : '追到小球啦，再跳一跳！') : lowMood ? '想先出去玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
+    const items = PET_SUPPLIES[kind]
+    const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'toy' ? items.play : mode === 'snacking' ? items.eat : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? (kind === 'cat' ? '扑一扑毛线球，玩得真开心～' : kind === 'rabbit' ? '蹦蹦跳跳，玩一玩小萝卜球～' : '追到小球啦，再跳一跳！') : lowMood ? '想先玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
     const location = trip ? `${trip.icon} ${pet.name}在${theme[scene]}` : `${pet.name}的${theme.home}`
     const tripStyle = trip ? ` style="--trip-duration:${TRIP_DURATION}ms;--trip-elapsed:-${Math.min(TRIP_DURATION, Math.max(0, Date.now() - petAnimation.startedAt))}ms"` : ''
     const disabled = busy ? 'disabled' : ''
@@ -665,16 +684,17 @@
         <div class="room-vitals"><div class="room-vital"><div><span>🍚 饱饱度</span><strong>${pet.satiety}%</strong></div><div class="room-vital-track"><span style="width:${pet.satiety}%"></span></div></div><div class="room-vital"><div><span>💛 开心度</span><strong>${pet.happiness}%</strong></div><div class="room-vital-track happy"><span style="width:${pet.happiness}%"></span></div></div></div>
         <div class="pet-speech" role="status" aria-live="polite">${speech}</div>
         <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet, sleeping)}</div>${sleeping ? '<div class="pet-sleep-sign" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div><div class="pet-night-moon" aria-hidden="true">☾</div>' : ''}
-        ${trip ? renderTripProps(scene, kind) : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
+        ${trip ? renderTripProps(scene, kind) : mode === 'toy' ? `<div class="pet-toy-prop" data-toy-kind="${kind}" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="toy-sparkles" aria-hidden="true">✦ <span>✧</span></div>` : mode === 'snacking' ? `<div class="pet-snack-plate" data-snack-kind="${kind}" aria-hidden="true"><span class="snack-serving">${window.PetArtwork.snack(kind)}</span></div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>` : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
         ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${switchDisabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${switchDisabled}>›</button>` : ''}
-        <span class="room-floor-note">${sleeping ? '晚安，明早 06:00 自动醒来' : mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
+        <span class="room-floor-note">${sleeping ? '晚安，明早 06:00 自动醒来' : mode === 'toy' ? `${items.toy}陪玩时间 · 开心度 +${petAnimation.gain}%` : mode === 'snacking' ? `正在享用${items.snack} · 饱饱度 +${petAnimation.gain}%` : mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
       </div>
-      ${!sleeping && lowMood ? '<p class="pet-mood-notice">💛 开心度达到 50% 才能喂食。去公园 +18%，宠物乐园 +26%，最高 100%。</p>' : ''}
+      ${!sleeping && lowMood ? '<p class="pet-mood-notice">💛 开心度达到 50% 才能喂食或吃零食。玩玩具 +20%，去公园 +18%，宠物乐园 +26%，最高 100%。</p>' : ''}
       <div class="pet-care-dock" aria-label="照顾宠物">
         ${sleeping || lowMood || state.food > 0 || mode === 'eating' ? `<button class="pet-care-button care-feed" data-action="feed-pet" data-id="${escapeHtml(pet.id)}" ${busy || lowMood ? 'disabled' : ''}><span class="care-button-icon">${sleeping ? '🌙' : '🥣'}</span><strong>${sleeping ? '睡觉中' : lowMood ? '先哄开心' : mode === 'eating' ? '吃饭中…' : '喂食'}</strong><small>${sleeping ? '06:00 后再来喂食' : lowMood ? '开心度需至少 50%' : '消耗 1 份饲料'}</small></button>` : `<button class="pet-care-button care-feed" data-view="shop" ${disabled}><span class="care-button-icon">🥣</span><strong>买点饲料</strong><small>背包里的饲料用完啦</small></button>`}
         <button class="pet-care-button care-walk" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="park" ${disabled}><span class="care-button-icon">🌳</span><strong>${scene === 'park' ? '散步中…' : '去公园'}</strong><small>10 积分</small></button>
         <button class="pet-care-button care-play" data-action="play-pet" data-id="${escapeHtml(pet.id)}" data-destination="playground" ${disabled}><span class="care-button-icon">🎠</span><strong>${scene === 'playground' ? '玩耍中…' : '宠物乐园'}</strong><small>20 积分</small></button>
       </div>
+      ${renderPetSupplies(pet, busy, lowMood)}
     </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${switchDisabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
   }
 
@@ -708,10 +728,17 @@
     showToast(`${pet?.name || '小伙伴'}回到小家啦！`)
   }
 
+  function renderSupplyShop(item) {
+    const toy = item === 'toy'
+    return `<section class="story-section"><div class="section-title"><h2>${toy ? '专属玩具' : '专属零食'}</h2><span class="section-note">${toy ? '购买一次，可反复玩 · 开心度 +20' : '每次消耗 1 份 · 饱饱度 +25'}</span></div><div class="catalog-grid supply-catalog">${CATALOG.map(animal => {
+      const bag = state.supplies[animal.id], name = PET_SUPPLIES[animal.id][item]
+      return `<article class="panel product-card supply-product" data-supply-product="${animal.id}-${item}"><div class="product-art ${animal.id}" aria-hidden="true">${toy ? window.PetArtwork.toy(animal.id) : window.PetArtwork.snack(animal.id)}</div><h3 class="product-name">${name}</h3><p class="product-intro">${animal.emoji} ${animal.species}专用 · ${toy ? '开心度 +20' : '饱饱度 +25'}</p><span class="supply-stock">${toy ? bag.toy ? '已拥有 · 同类伙伴共用' : '买一次，可反复使用' : `背包里还有 ${bag.snacks} 份`}</span><div class="product-bottom"><span class="product-price">✦ ${SUPPLY_PRICE} 积分</span><button class="primary-button button-small" data-action="buy-supply" data-kind="${animal.id}" data-item="${item}" ${toy && bag.toy ? 'disabled' : ''}>${toy && bag.toy ? '已拥有' : '购买'}</button></div></article>`
+    }).join('')}</div></section>`
+  }
   function renderShop() {
     const sleeping = isPetSleeping()
     const products = CATALOG.map(product => `<article class="panel product-card"><div class="product-art ${product.art}"><span>${product.emoji}</span><span class="product-heart">♥</span></div><h3 class="product-name">${product.name}</h3><p class="product-intro">${product.intro}</p><div class="product-bottom"><span class="product-price">✦ ${product.price}</span>${sleeping ? '<button class="primary-button button-small" disabled>06:00 后领养</button>' : state.points >= product.price ? `<button class="primary-button button-small" data-action="adopt" data-id="${product.id}">领养</button>` : `<span class="need-more">还差 ${product.price - state.points} 分</span>`}</div></article>`).join('')
-    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备好吃的。')}${sleeping ? renderPetRestNotice() : ''}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section><p class="shop-footnote">积分来自完成作业打卡和大人额外奖励。宠物和饲料都是网页里的虚拟物品 🐾</p>`
+    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备玩具和好吃的。')}${sleeping ? renderPetRestNotice() : ''}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section>${renderSupplyShop('toy')}${renderSupplyShop('snack')}<p class="shop-footnote">购买后，到“我的宠物”里的专属背包点击使用。宠物、玩具和食物都是虚拟物品，均使用积分兑换 🐾</p>`
   }
 
   function commit(message) {
@@ -914,6 +941,38 @@
     addLog('买了 3 份香香宠物粮')
     commit('饲料放进背包啦')
   }
+  function buySupply(kind, item) {
+    if (!Object.hasOwn(PET_SUPPLIES, kind) || !['toy', 'snack'].includes(item)) return
+    const bag = state.supplies[kind], name = PET_SUPPLIES[kind][item]
+    if (item === 'toy' && bag.toy) return showToast('背包里已有这个玩具，可以反复使用')
+    if (state.points < SUPPLY_PRICE) return showInsufficientPoints(SUPPLY_PRICE)
+    state.points -= SUPPLY_PRICE
+    if (item === 'toy') bag.toy = true
+    else bag.snacks += 1
+    addLog(`花费 ${SUPPLY_PRICE} 积分，买了${name}${item === 'snack' ? ' 1 份' : ''}`)
+    commit(`${name}放进背包啦，去宠物的小家使用吧！`)
+  }
+  function usePetSupply(id, item) {
+    if (!allowPetInteraction() || petAnimation || !['toy', 'snack'].includes(item)) return
+    const pet = state.pets.find(friend => friend.id === id)
+    if (!pet) return
+    const kind = petKind(pet), bag = state.supplies[kind], name = PET_SUPPLIES[kind][item]
+    if (item === 'toy' && !bag.toy) return showToast('先给这位小伙伴买一个专属玩具吧', true)
+    if (item === 'snack') {
+      if (pet.happiness < 50) return showToast('开心度不足 50%，暂时不能喂零食。\n先用玩具陪玩，或带小伙伴出去走走吧', true)
+      if (bag.snacks < 1) return showToast('背包里没有这位小伙伴的零食啦', true)
+      if (pet.satiety >= 100) return showToast('小伙伴已经吃饱啦，零食留到下次吧', true)
+    }
+    const gain = item === 'toy' ? Math.min(TOY_HAPPINESS, 100 - pet.happiness) : Math.min(SNACK_SATIETY, 100 - pet.satiety)
+    if (item === 'toy') pet.happiness += gain
+    else { bag.snacks -= 1; pet.satiety += gain }
+    addLog(item === 'toy' ? `陪${pet.name}玩${name}，开心度 +${gain}` : `给${pet.name}喂了${name}，饱饱度 +${gain}`)
+    activePetId = id
+    petAnimation = { petId: id, type: item === 'toy' ? 'toy' : 'snacking', gain }
+    if (!commit()) { petAnimation = null; render(); return }
+    document.querySelector('.pet-house')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    finishPetAnimation(item === 'toy' ? 6000 : 4200, item === 'toy' ? `${pet.name}玩得好开心！${gain ? `开心度 +${gain}` : '开心度已满'}` : `${pet.name}吃完零食啦，饱饱度 +${gain}！`)
+  }
   function feedPet(id) {
     if (!allowPetInteraction()) return
     if (petAnimation) return
@@ -1094,6 +1153,8 @@
     if (action === 'delete-task') deleteTask(button.dataset.id)
     if (action === 'adopt') adoptPet(button.dataset.id)
     if (action === 'buy-food') buyFood()
+    if (action === 'buy-supply') buySupply(button.dataset.kind, button.dataset.item)
+    if (action === 'use-supply') usePetSupply(button.dataset.id, button.dataset.item)
     if (action === 'feed-pet') feedPet(button.dataset.id)
     if (action === 'select-pet') selectPet(button.dataset.id)
     if (action === 'previous-pet') cyclePet(-1)
