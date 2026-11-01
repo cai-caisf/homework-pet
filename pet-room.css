@@ -212,6 +212,61 @@
 .scene-playground[data-pet-kind="cat"] .pet-figure { animation-duration: 3.5s; }
 @keyframes rabbit-meadow-bob { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-12px) scale(.98, 1.02); } }
 
+/* Species-specific toys and treats stay in the pet's own little backpack. */
+.pet-supplies { border-top: 1px solid #e5cfb0; padding: 18px; background: #fffbf2; }
+.pet-supplies .section-title { flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+.pet-supplies h2 { font-size: 14px; }
+.pet-supply-grid { display: grid; gap: 10px; }
+.pet-supply-row { display: flex; align-items: center; gap: 12px; border: 1px solid #e8dbc7; border-radius: 15px; padding: 12px; background: #fffefa; }
+.supply-icon { display: grid; flex: 0 0 55px; width: 55px; height: 55px; place-items: center; border-radius: 14px; background: #f5e9ef; }
+.supply-icon svg { width: 50px; height: 50px; }
+.snack-icon { background: #f3edda; }
+.supply-copy { flex: 1; min-width: 0; }
+.supply-copy strong, .supply-copy small, .supply-copy em { display: block; }
+.supply-copy strong { color: #7f6243; font-size: 12px; }
+.supply-copy small { margin-top: 5px; color: #a18a6b; font-size: 10px; }
+.supply-copy em { margin-top: 5px; color: #82916d; font-size: 10px; font-style: normal; }
+.supply-actions { display: grid; justify-items: end; gap: 6px; }
+.supply-actions .quiet-button { padding: 2px; font-size: 10px; }
+.supply-note { margin: 12px 2px 0; color: #a5937b; font-size: 10px; line-height: 1.8; }
+.supply-product .product-art svg { width: 90px; height: 90px; }
+.supply-stock { display: block; margin: 4px 2px; color: #82916d; font-size: 10px; line-height: 1.6; }
+.pet-toy-prop { position: absolute; z-index: 3; bottom: 65px; left: calc(50% + 45px); width: 76px; height: 76px; animation: toy-bone-toss 1.3s ease-in-out infinite; }
+.pet-toy-prop svg { display: block; width: 100%; height: 100%; }
+.pet-toy-prop[data-toy-kind="cat"] { animation: toy-yarn-roll 1.6s ease-in-out infinite; }
+.pet-toy-prop[data-toy-kind="rabbit"] { animation: toy-carrot-bounce 1s ease-in-out infinite; }
+.toy-sparkles { position: absolute; z-index: 3; left: calc(50% + 60px); bottom: 177px; color: #d6ad5e; font-size: 23px; animation: trip-sparkle 1s ease-in-out infinite; }
+.toy-sparkles span { margin-left: 16px; }
+.is-toy .pet-figure { animation: pet-toy-dance 1.3s ease-in-out infinite; }
+.is-toy[data-pet-kind="cat"] .pet-figure { animation: pet-toy-pounce 1.6s ease-in-out infinite; }
+.is-toy[data-pet-kind="rabbit"] .pet-figure { animation: pet-toy-hop 1s ease-in-out infinite; }
+.is-toy .pet-paw-front-right { transform-box: fill-box; transform-origin: center top; animation: toy-paw-tap .65s ease-in-out infinite alternate; }
+.is-toy .pet-tail { animation-duration: .45s; }
+:is(.is-toy, .is-snacking) .pet-eyes { opacity: 0; }
+:is(.is-toy, .is-snacking) .pet-eating-eyes { opacity: 1; }
+:is(.is-toy, .is-snacking) .pet-affection span { animation: pet-heart-float 1.4s .5s ease-out infinite; }
+:is(.is-toy, .is-snacking) .pet-affection span:nth-child(2) { animation-delay: 1s; }
+.pet-snack-plate { position: absolute; z-index: 3; bottom: 49px; left: calc(50% - 59px); width: 118px; height: 66px; }
+.pet-snack-plate::before { position: absolute; inset: 30px 0 0; border: 3px solid #b7a2c0; border-radius: 50%; background: #e6d9e9; box-shadow: 0 4px 0 #c5b2cb; content: ''; }
+.snack-serving { position: relative; display: block; width: 65px; height: 65px; margin: -2px auto 0; animation: snack-nibble-away 3.9s ease-in-out both; }
+.snack-serving svg { width: 100%; height: 100%; }
+.is-snacking .pet-figure { animation: pet-eating-body .5s ease-in-out infinite; }
+.is-snacking .pet-head { animation: pet-snack-head 4s ease-in-out both; }
+.is-snacking .pet-mouth-idle { opacity: 0; }
+.is-snacking .pet-mouth-chew { opacity: 1; transform-box: fill-box; transform-origin: center; animation: pet-chew .27s ease-in-out infinite; }
+.is-snacking .food-crumbs i { animation: pet-crumb .65s .7s ease-out infinite; }
+.is-snacking .food-crumbs i:nth-child(2) { animation-delay: .9s; }
+.is-snacking .food-crumbs i:nth-child(3) { animation-delay: 1.1s; }
+@keyframes toy-bone-toss { 0%, 100% { transform: translate(-18px, 0) rotate(-20deg); } 50% { transform: translate(10px, -60px) rotate(95deg); } }
+@keyframes toy-yarn-roll { 0%, 100% { transform: translate(-25px, 0) rotate(-55deg); } 50% { transform: translate(25px, -8px) rotate(95deg); } }
+@keyframes toy-carrot-bounce { 0%, 100% { transform: translate(-16px, 0) rotate(-15deg); } 50% { transform: translate(12px, -34px) rotate(50deg); } }
+@keyframes pet-toy-dance { 0%, 100% { transform: translateX(-12px) rotate(-3deg); } 50% { transform: translate(10px, -20px) rotate(4deg); } }
+@keyframes pet-toy-pounce { 0%, 100% { transform: translateX(-15px) rotate(-3deg); } 45% { transform: translate(16px, -18px) rotate(6deg); } 65% { transform: translate(22px, 2px) scale(1.04, .96); } }
+@keyframes pet-toy-hop { 0%, 100% { transform: translateX(-10px); } 50% { transform: translate(12px, -32px) rotate(-3deg); } }
+@keyframes toy-paw-tap { from { transform: rotate(-5deg); } to { transform: translate(5px, -13px) rotate(-22deg); } }
+@keyframes pet-snack-head { 0%, 100% { transform: translateY(0); } 15%, 30%, 50%, 70%, 87% { transform: translateY(65px) rotate(2deg); } 22%, 40%, 60%, 80% { transform: translateY(59px) rotate(-2deg); } }
+@keyframes snack-nibble-away { 0%, 20% { transform: scale(1); opacity: 1; } 45% { transform: scale(.8); opacity: 1; } 70% { transform: scale(.5); opacity: 1; } 90%, 100% { transform: scale(.15); opacity: 0; } }
+
 @media (max-width: 900px) {
   .pet-room-layout { grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; }
   .pet-room-aside { grid-template-columns: 1fr 1fr; align-items: start; }
@@ -220,6 +275,20 @@
 @media (max-width: 620px) {
   .pet-room-layout { gap: 14px; }
   .pet-house { border-radius: 20px; }
+  .pet-supplies { padding: 14px 11px; }
+  .pet-supply-row { gap: 8px; padding: 10px 8px; }
+  .supply-icon { flex-basis: 42px; width: 42px; height: 46px; }
+  .supply-icon svg { width: 40px; height: 40px; }
+  .supply-copy strong { font-size: 11px; }
+  .supply-copy small, .supply-copy em { font-size: 9px; }
+  .pet-supply-row > button, .supply-actions .button-small { min-height: 34px; padding: 0 8px; font-size: 10px; }
+  .supply-catalog { grid-template-columns: 1fr; }
+  .supply-product { display: grid; grid-template-columns: 75px 1fr; column-gap: 13px; align-items: center; }
+  .supply-product .product-art { grid-row: 1 / 5; height: 90px; }
+  .supply-product .product-art svg { width: 65px; height: 65px; }
+  .supply-product .product-name { margin-top: 0; }
+  .supply-product .product-intro { min-height: 0; }
+  .supply-product .product-bottom { margin-top: 6px; }
   .house-heading { padding: 13px 14px; }
   .house-heading h2 { font-size: 17px; gap: 6px; }
   .house-eyebrow { margin-bottom: 4px; font-size: 8px; }
