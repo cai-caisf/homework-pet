@@ -1,4 +1,8 @@
 /* Illustrated room and animal interactions. */
+.pet-needs-rule { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 18px; border: 1px solid #e6dfc8; border-radius: 14px; padding: 13px 16px; background: #fbf7e9; }
+.pet-needs-rule > span { flex-shrink: 0; font-size: 23px; }
+.pet-needs-rule strong { display: block; color: #87734a; font-size: 12px; line-height: 1.8; }
+.pet-needs-rule small { display: block; margin-top: 3px; color: #a08d69; font-size: 11px; line-height: 1.9; }
 .pet-room-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(260px, .8fr); align-items: start; gap: 20px; }
 .pet-house { scroll-margin-top: 14px; overflow: hidden; border: 2px solid #d8bd9d; border-radius: 24px; background: #fff6e9; box-shadow: 0 12px 30px rgba(128, 95, 63, .08); }
 .house-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 20px 15px; border-bottom: 1px solid #e9d4b9; background: #fff8ee; }
