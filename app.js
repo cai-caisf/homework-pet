@@ -11,6 +11,8 @@
   const SUPPLY_PRICE = 50
   const TOY_HAPPINESS = 20
   const SNACK_SATIETY = 25
+  const SATIETY_DECAY_MS = 10 * 60 * 1000
+  const HAPPINESS_DECAY_MS = 15 * 60 * 1000
   const PET_SUPPLIES = {
     dog: { toy: '骨头响响玩具', snack: '骨头饼干', play: '抱住小骨头，摇摇尾巴真开心～', eat: '咔嚓咔嚓，骨头饼干真香～' },
     cat: { toy: '毛线球', snack: '小鱼饼干', play: '扑一扑，毛线球别跑呀～', eat: '喵呜，小鱼饼干真好吃～' },
@@ -70,7 +72,7 @@
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
       const normalized = normalizeState(saved)
-      if (saved && Array.isArray(saved.tasks) && saved.tasks.some(task => !isValidDateKey(task?.scheduledDate))) {
+      if (saved && ((Array.isArray(saved.tasks) && saved.tasks.some(task => !isValidDateKey(task?.scheduledDate))) || (Array.isArray(saved.pets) && saved.pets.some(pet => !validNeedsTimestamp(pet?.needsUpdatedAt))))) {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)) } catch (_) { /* Keep readable records even if migration cannot be saved. */ }
       }
       return normalized
@@ -92,7 +94,9 @@
         })) : [],
         pets: Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(item => ({
           id: String(item.id || makeId()), species: String(item.species || '宠物'), name: item.name.slice(0, 20), emoji: String(item.emoji || '🐾'),
-          happiness: clamp(item.happiness, 0, 100, 72), satiety: clamp(item.satiety, 0, 100, 75), playCount: nonNegativeInt(item.playCount)
+          happiness: clamp(item.happiness, 0, 100, 72), satiety: clamp(item.satiety, 0, 100, 75), playCount: nonNegativeInt(item.playCount),
+          needsUpdatedAt: validNeedsTimestamp(item.needsUpdatedAt) ? Number(item.needsUpdatedAt) : Date.now(),
+          satietyRemainderMs: needsRemainder(item.satietyRemainderMs, SATIETY_DECAY_MS), happinessRemainderMs: needsRemainder(item.happinessRemainderMs, HAPPINESS_DECAY_MS)
         })) : [],
         food: nonNegativeInt(saved.food),
         supplies: Object.fromEntries(CATALOG.map(item => [item.id, { toy: saved.supplies?.[item.id]?.toy === true, snacks: nonNegativeInt(saved.supplies?.[item.id]?.snacks) }])),
@@ -412,6 +416,71 @@
     showToast(`积分还不够，还差 ${Math.max(0, cost - state.points)} 分。\n完成作业或请大人奖励后再来吧`, true)
   }
   function petClockNow() { return new Date() }
+  function validNeedsTimestamp(value) { return Number.isSafeInteger(value) && value > 0 && value <= 8640000000000000 }
+  function needsRemainder(value, period) { return Number.isSafeInteger(value) && value >= 0 && value < period ? value : 0 }
+  function awakeTimeBetween(start, end) {
+    if (end <= start) return 0
+    let total = 0
+    const day = new Date(start)
+    day.setHours(0, 0, 0, 0)
+    while (day.getTime() < end) {
+      const wake = new Date(day), sleep = new Date(day)
+      wake.setHours(6, 0, 0, 0)
+      sleep.setHours(22, 30, 0, 0)
+      total += Math.max(0, Math.min(end, sleep.getTime()) - Math.max(start, wake.getTime()))
+      day.setDate(day.getDate() + 1)
+    }
+    return total
+  }
+  function advancePetNeeds(pet, now = Date.now(), checkpoint = false) {
+    if (!validNeedsTimestamp(pet.needsUpdatedAt) || pet.needsUpdatedAt > now) {
+      pet.needsUpdatedAt = now
+      pet.satietyRemainderMs = 0
+      pet.happinessRemainderMs = 0
+      return { changed: true, valuesChanged: false }
+    }
+    if (now === pet.needsUpdatedAt) return { changed: false, valuesChanged: false }
+    // Four local days already exceed the time needed for both values to reach zero.
+    const start = Math.max(pet.needsUpdatedAt, now - 4 * 24 * 60 * 60 * 1000)
+    const awake = awakeTimeBetween(start, now)
+    const hunger = needsRemainder(pet.satietyRemainderMs, SATIETY_DECAY_MS) + awake
+    const mood = needsRemainder(pet.happinessRemainderMs, HAPPINESS_DECAY_MS) + awake
+    const hungerLoss = Math.floor(hunger / SATIETY_DECAY_MS), moodLoss = Math.floor(mood / HAPPINESS_DECAY_MS)
+    if (!checkpoint && !hungerLoss && !moodLoss) return { changed: false, valuesChanged: false }
+    const satiety = Math.max(0, pet.satiety - hungerLoss), happiness = Math.max(0, pet.happiness - moodLoss)
+    const valuesChanged = satiety !== pet.satiety || happiness !== pet.happiness
+    pet.satiety = satiety
+    pet.happiness = happiness
+    pet.satietyRemainderMs = satiety > 0 ? hunger % SATIETY_DECAY_MS : 0
+    pet.happinessRemainderMs = happiness > 0 ? mood % HAPPINESS_DECAY_MS : 0
+    pet.needsUpdatedAt = now
+    return { changed: true, valuesChanged }
+  }
+  function syncPetNeeds(refresh = true, checkpoint = false) {
+    if (backupBusy || !state.pets.length) return true
+    const previous = structuredClone(state.pets), now = petClockNow().getTime()
+    const changes = state.pets.map(pet => advancePetNeeds(pet, now, checkpoint))
+    if (!changes.some(change => change.changed)) return true
+    if (!saveState()) { state.pets = previous; return false }
+    if (refresh && changes.some(change => change.valuesChanged)) {
+      if (currentView === 'home' || (currentView === 'pets' && !petAnimation)) render()
+      else if (currentView === 'pets') {
+        const pet = state.pets.find(item => item.id === activePetId) || state.pets[0]
+        document.querySelectorAll('.room-vital strong').forEach((label, index) => { label.textContent = `${index ? pet.happiness : pet.satiety}%` })
+        document.querySelectorAll('.room-vital-track > span').forEach((bar, index) => { bar.style.width = `${index ? pet.happiness : pet.satiety}%` })
+      }
+    }
+    return true
+  }
+  function tickPetNeeds() {
+    if (backupBusy) return
+    state = loadState()
+    syncPetNeeds()
+  }
+  function onlyPetNeedsChanged(previous, next) {
+    const signature = value => JSON.stringify({ ...value, pets: value.pets.map(pet => ({ ...pet, satiety: 0, happiness: 0, needsUpdatedAt: 0, satietyRemainderMs: 0, happinessRemainderMs: 0 })) })
+    return signature(previous) === signature(next)
+  }
   function isPetSleeping(now = petClockNow()) {
     const minutes = now.getHours() * 60 + now.getMinutes()
     return minutes >= 22 * 60 + 30 || minutes < 6 * 60
@@ -443,6 +512,7 @@
     schedulePetSleepCheck()
   }
   function allowPetInteraction() {
+    if (!syncPetNeeds(false, true)) return false
     syncPetSleep()
     if (!isPetSleeping()) return true
     showToast('小伙伴正在睡觉 🌙\n每天 22:30–次日 06:00 暂停宠物互动', true)
@@ -459,6 +529,7 @@
     })
   }
   function render() {
+    syncPetNeeds(false)
     topPoints.textContent = String(state.points)
     updateNav()
     const views = { home: renderHome, tasks: renderTasks, pets: renderPets, shop: renderShop }
@@ -660,10 +731,13 @@
       <div class="pet-supply-row"><div class="supply-icon snack-icon" aria-hidden="true">${window.PetArtwork.snack(kind)}</div><div class="supply-copy"><strong>${items.snack}</strong><small>饱饱度 +${SNACK_SATIETY} · 每次 1 份</small><em>背包里还有 ${bag.snacks} 份</em></div><div class="supply-actions"><button class="secondary-button button-small" data-action="use-supply" data-item="snack" data-id="${escapeHtml(pet.id)}" ${busy || lowMood || bag.snacks < 1 || pet.satiety >= 100 ? 'disabled' : ''}>${sleeping ? '睡觉中' : mode === 'snacking' ? '吃零食中…' : lowMood ? '先哄开心' : pet.satiety >= 100 ? '已经吃饱' : '喂零食'}</button><button class="quiet-button" data-action="buy-supply" data-kind="${kind}" data-item="snack">${bag.snacks ? '再买一份' : '购买一份'} · 50分</button></div></div>
       </div><p class="supply-note">玩具和零食只给对应动物使用；数值最高 100%。睡觉时可以购买，醒来后再一起玩。</p></section>`
   }
+  function renderPetNeedsRule() {
+    return '<div class="pet-needs-rule"><span aria-hidden="true">⏳</span><div><strong>白天每小时：饱饱度 −6 · 开心度 −4</strong><small>饱饱度每 10 分钟降 1，开心度每 15 分钟降 1。22:30–06:00 睡觉时暂停；所有伙伴都会计算，离线后再打开也会补算。</small></div></div>'
+  }
   function renderPets() {
     const sleeping = isPetSleeping()
     const restNotice = sleeping ? renderPetRestNotice() : ''
-    const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)
+    const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`) + renderPetNeedsRule()
     if (!state.pets.length) return `${heading}${restNotice}<div class="panel empty-state pet-house-empty"><span class="empty-icon">🐾</span><strong>小家在等第一位伙伴</strong><p>完成作业攒积分，领养后就能在这里喂它、陪它玩。</p><button class="primary-button" data-view="shop">${sleeping ? '去小铺看看 →' : '去领养小伙伴 →'}</button></div>`
     const pet = state.pets.find(item => item.id === activePetId) || state.pets[0]
     activePetId = pet.id
@@ -930,7 +1004,7 @@
     if (!product) return
     if (state.points < product.price) return showInsufficientPoints(product.price)
     const count = state.pets.filter(pet => pet.species === product.species).length
-    const pet = { id: makeId(), species: product.species, name: count ? `${product.nameBase}${count + 1}` : product.nameBase, emoji: product.emoji, happiness: 72, satiety: 75, playCount: 0 }
+    const pet = { id: makeId(), species: product.species, name: count ? `${product.nameBase}${count + 1}` : product.nameBase, emoji: product.emoji, happiness: 72, satiety: 75, playCount: 0, needsUpdatedAt: Date.now(), satietyRemainderMs: 0, happinessRemainderMs: 0 }
     state.points -= product.price
     state.pets.push(pet)
     addLog(`领养了${pet.name}，欢迎新伙伴回家`)
@@ -1026,6 +1100,7 @@
   }
   async function exportBackup() {
     if (backupBusy || savingTask || processingPhotos || actionDialog.open) return
+    syncPetNeeds(false, true)
     backupBusy = true
     const button = document.querySelector('[data-action="export"]')
     button.disabled = true
@@ -1327,18 +1402,23 @@
   window.addEventListener('resize', () => { if (photoViewer.open) resizeViewerPhoto() })
   window.addEventListener('storage', event => {
     if (event.key === STORAGE_KEY) {
-      if (actionDialog.open) actionDialog.close()
-      state = loadState()
+      const next = loadState()
+      const passive = onlyPetNeedsChanged(state, next)
+      if (actionDialog.open && !passive) actionDialog.close()
+      state = next
       render()
-      showToast('这个浏览器中的数据已更新')
+      if (!passive) showToast('这个浏览器中的数据已更新')
     }
   })
 
   window.addEventListener('focus', syncPetSleep)
+  window.addEventListener('focus', tickPetNeeds)
   window.addEventListener('focus', syncTaskCalendar)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPetSleep() })
+  document.addEventListener('visibilitychange', () => { if (document.hidden) syncPetNeeds(false, true); else tickPetNeeds() })
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncTaskCalendar() })
   setInterval(syncPetSleep, 30000)
+  setInterval(tickPetNeeds, 60000)
   setInterval(syncTaskCalendar, 60000)
   schedulePetSleepCheck()
   render()
