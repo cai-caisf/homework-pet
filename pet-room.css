@@ -20,6 +20,28 @@
 .room-vital-track { height: 6px; overflow: hidden; border-radius: 99px; background: #eee3cd; }
 .room-vital-track span { display: block; height: 100%; border-radius: inherit; background: #dfb467; }
 .room-vital-track.happy span { background: #d58f80; }
+.room-vital-track.health span { background: #88aaa1; }
+.pet-health-notice { margin: 0; border-top: 1px solid #ead6bd; padding: 14px 17px; background: #fff1e2; color: #986e46; font-size: 12px; line-height: 1.9; }
+.pet-medicine-box { border-top: 1px solid #d5e1d6; padding: 18px; background: #f2f7ef; }
+.pet-medicine-box .section-title { flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+.pet-medicine-box h2 { font-size: 14px; }
+.medicine-icon { background: #e9f1e7; font-size: 29px; }
+.medicine-shop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.medicine-product { display: flex; align-items: center; gap: 12px; padding: 17px; }
+.pet-medicine-prop { position: absolute; z-index: 4; right: calc(50% - 136px); bottom: 155px; width: 75px; height: 75px; }
+.pet-medicine-prop > span { display: block; font-size: 51px; animation: medicine-float 1.2s ease-in-out infinite; }
+.pet-medicine-prop i { position: absolute; left: 10px; top: -15px; color: #91b19a; font-size: 24px; font-style: normal; animation: pet-heart-float 1.8s ease-out infinite; }
+.pet-medicine-prop i:last-child { left: -72px; top: -18px; color: #d6a593; animation-delay: .7s; }
+.is-healing .pet-figure { animation: pet-breathe 1.8s ease-in-out infinite; }
+.is-healing .pet-head { animation: medicine-head-bob 1.2s ease-in-out infinite; }
+.is-healing .pet-eyes { opacity: 0; }
+.is-healing .pet-eating-eyes { opacity: 1; }
+.is-healing[data-medicine="capsule"] .pet-mouth-idle { opacity: 0; }
+.is-healing[data-medicine="capsule"] .pet-mouth-chew { opacity: 1; transform-box: fill-box; transform-origin: center; animation: pet-chew .4s ease-in-out infinite; }
+.is-healing[data-medicine="injection"] .pet-paw-front-right { transform-box: fill-box; transform-origin: center top; animation: toy-paw-tap 1.3s ease-in-out infinite alternate; }
+.is-healing .pet-affection span { animation: pet-heart-float 1.8s .5s ease-out infinite; }
+@keyframes medicine-float { 0%, 100% { transform: translate(0, 4px) rotate(-9deg); } 50% { transform: translate(-20px, -9px) rotate(7deg); } }
+@keyframes medicine-head-bob { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(7px) rotate(2deg); } }
 .pet-speech { position: absolute; z-index: 4; bottom: calc(var(--pet-size) + 78px); left: 50%; width: max-content; max-width: calc(100% - 74px); transform: translateX(-50%); border: 1.5px solid #ddc6a5; border-radius: 14px; padding: 10px 15px; background: #fffcf5; color: #947051; box-shadow: 0 4px 0 rgba(154, 112, 74, .06); text-align: center; font-size: 12px; line-height: 1.5; }
 .pet-speech::after { position: absolute; bottom: -6px; left: calc(50% - 5px); width: 10px; height: 10px; transform: rotate(45deg); border-right: 1.5px solid #ddc6a5; border-bottom: 1.5px solid #ddc6a5; background: #fffcf5; content: ''; }
 .pet-floor-shadow { position: absolute; bottom: 72px; left: 50%; width: 150px; height: 20px; transform: translateX(-50%); border-radius: 50%; background: rgba(137, 96, 57, .13); filter: blur(2px); }
@@ -280,6 +302,8 @@
   .pet-room-layout { gap: 14px; }
   .pet-house { border-radius: 20px; }
   .pet-supplies { padding: 14px 11px; }
+  .pet-medicine-box { padding: 14px 11px; }
+  .medicine-shop-grid { grid-template-columns: 1fr; }
   .pet-supply-row { gap: 8px; padding: 10px 8px; }
   .supply-icon { flex-basis: 42px; width: 42px; height: 46px; }
   .supply-icon svg { width: 40px; height: 40px; }
