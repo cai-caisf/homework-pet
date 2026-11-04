@@ -812,17 +812,11 @@
     const sleeping = isPetSleeping()
     return `<section class="${pet ? 'pet-medicine-box' : 'story-section'}" aria-label="健康药箱"><div class="section-title"><h2>健康小药箱</h2><span class="section-note">${pet ? `当前健康度 ${pet.health}%` : '恢复到 100% 后再互动'}</span></div><div class="${pet ? 'pet-supply-grid' : 'medicine-shop-grid'}">${Object.entries(MEDICINES).map(([key, item]) => `<div class="${pet ? 'pet-supply-row' : 'panel medicine-product'}" data-medicine-product="${key}"><span class="supply-icon medicine-icon" aria-hidden="true">${item.icon}</span><div class="supply-copy"><strong>${item.name}</strong><small>健康度 +${item.recovery} · 最高 100%</small><em>药箱里还有 ${state.medicines[key]} 份</em></div><div class="supply-actions">${pet ? `<button type="button" class="secondary-button button-small" data-action="use-medicine" data-item="${key}" data-id="${escapeHtml(pet.id)}" ${busy || sleeping || pet.health >= 100 || state.medicines[key] < 1 ? 'disabled' : ''}>${sleeping ? '睡觉中' : petAnimation?.petId === pet.id && petAnimation.type === 'healing' ? '恢复中…' : pet.health >= 100 ? '已健康' : item.action}</button>` : ''}<button type="button" class="${pet ? 'quiet-button' : 'primary-button button-small'}" data-action="buy-medicine" data-item="${key}">购买 · ${item.price}分</button></div></div>`).join('')}</div><p class="supply-note">胶囊和针剂每次消耗 1 份，所有伙伴共用库存。使用后重新开始健康计时；睡觉时可以购买，06:00 后再使用。</p></section>`
   }
-  function renderPetNeedsRule(pet) {
-    const rates = pet?.decayRates
-    const title = rates ? `${escapeHtml(pet.name)}每小时约：${[['饱饱度', 'satiety'], ['开心度', 'happiness'], ['健康度', 'health']].map(([label, stat]) => `<span style="white-space:nowrap">${label} −${rates[stat]}</span>`).join(' · ')}` : '每只小伙伴，都有自己的消耗速度'
-    const detail = rates ? '每位伙伴的三项速度都有固定的小差异，切换伙伴可查看。' : '白天每小时：饱饱度 −5～7、开心度 −3～5、健康度 −1～3，均为整数点。'
-    return `<div class="pet-needs-rule"><span aria-hidden="true">⏳</span><div><strong>${title}</strong><small>${detail}健康度低于 100% 时先恢复，再喂食、陪玩或出游。22:30–06:00 暂停消耗与互动；离线后再打开也会补算。</small></div></div>`
-  }
   function renderPets() {
     const sleeping = isPetSleeping()
     const restNotice = sleeping ? renderPetRestNotice() : ''
     const pet = state.pets.find(item => item.id === activePetId) || state.pets[0]
-    const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`) + renderPetNeedsRule(pet)
+    const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`)
     if (!state.pets.length) return `${heading}${restNotice}<div class="panel empty-state pet-house-empty"><span class="empty-icon">🐾</span><strong>小家在等第一位伙伴</strong><p>完成作业攒积分，领养后就能在这里喂它、陪它玩。</p><button class="primary-button" data-view="shop">${sleeping ? '去小铺看看 →' : '去领养小伙伴 →'}</button></div>`
     activePetId = pet.id
     const mode = sleeping ? 'sleeping' : petAnimation?.petId === pet.id ? petAnimation.type : 'idle'
