@@ -11,9 +11,8 @@
   const SUPPLY_PRICE = 50
   const TOY_HAPPINESS = 20
   const SNACK_SATIETY = 25
-  const SATIETY_DECAY_MS = 10 * 60 * 1000
-  const HAPPINESS_DECAY_MS = 15 * 60 * 1000
-  const HEALTH_DECAY_MS = 60 * 60 * 1000
+  const BASE_DECAY_RATES = { satiety: 6, happiness: 4, health: 2 }
+  const DECAY_RATE_LIMITS = { satiety: [5, 7], happiness: [3, 5], health: [1, 3] }
   const MEDICINES = {
     capsule: { name: '元气胶囊', icon: '💊', price: 30, recovery: 10, action: '使用胶囊' },
     injection: { name: '健康针剂', icon: '💉', price: 50, recovery: 20, action: '打针' }
@@ -77,7 +76,7 @@
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
       const normalized = normalizeState(saved)
-      if (saved && ((Array.isArray(saved.tasks) && saved.tasks.some(task => !isValidDateKey(task?.scheduledDate))) || (Array.isArray(saved.pets) && saved.pets.some(pet => !validNeedsTimestamp(pet?.needsUpdatedAt) || !validNeedsTimestamp(pet?.healthUpdatedAt) || pet?.health == null)))) {
+      if (saved && ((Array.isArray(saved.tasks) && saved.tasks.some(task => !isValidDateKey(task?.scheduledDate))) || (Array.isArray(saved.pets) && saved.pets.some(pet => !validNeedsTimestamp(pet?.needsUpdatedAt) || !validNeedsTimestamp(pet?.healthUpdatedAt) || pet?.health == null || !validDecayRates(pet?.decayRates))))) {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)) } catch (_) { /* Keep readable records even if migration cannot be saved. */ }
       }
       return normalized
@@ -97,20 +96,51 @@
           timeWindow: validTimeWindow(item.timeWindow) ? { start: item.timeWindow.start, end: item.timeWindow.end } : null,
           photos: Array.isArray(item.photos) ? item.photos.filter(photo => photo && typeof photo.id === 'string').slice(0, MAX_TASK_PHOTOS).map(photo => ({ id: photo.id, name: typeof photo.name === 'string' ? photo.name.slice(0, 100) : '作业照片' })) : []
         })) : [],
-        pets: Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(item => ({
-          id: String(item.id || makeId()), species: String(item.species || '宠物'), name: item.name.slice(0, 20), emoji: String(item.emoji || '🐾'),
-          happiness: clamp(item.happiness, 0, 100, 72), satiety: clamp(item.satiety, 0, 100, 75), playCount: nonNegativeInt(item.playCount),
-          health: item.health == null ? 100 : clamp(item.health, 0, 100, 100),
-          healthUpdatedAt: validNeedsTimestamp(item.healthUpdatedAt) ? Number(item.healthUpdatedAt) : Date.now(), healthRemainderMs: needsRemainder(item.healthRemainderMs, HEALTH_DECAY_MS),
-          needsUpdatedAt: validNeedsTimestamp(item.needsUpdatedAt) ? Number(item.needsUpdatedAt) : Date.now(),
-          satietyRemainderMs: needsRemainder(item.satietyRemainderMs, SATIETY_DECAY_MS), happinessRemainderMs: needsRemainder(item.happinessRemainderMs, HAPPINESS_DECAY_MS)
-        })) : [],
+        pets: Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(normalizePet) : [],
         food: nonNegativeInt(saved.food),
         supplies: Object.fromEntries(CATALOG.map(item => [item.id, { toy: saved.supplies?.[item.id]?.toy === true, snacks: nonNegativeInt(saved.supplies?.[item.id]?.snacks) }])),
         medicines: { capsule: nonNegativeInt(saved.medicines?.capsule), injection: nonNegativeInt(saved.medicines?.injection) },
         activityLog: Array.isArray(saved.activityLog) ? saved.activityLog.filter(item => item && typeof item.message === 'string').slice(0, 20).map(item => ({ id: String(item.id || makeId()), message: item.message.slice(0, 120), stamp: String(item.stamp || '') })) : [],
         bonusRewards: Array.isArray(saved.bonusRewards) ? saved.bonusRewards.filter(item => item && isValidReward(item.points) && Number(item.points) <= MAX_BONUS && typeof item.reason === 'string').slice(0, 100).map(item => ({ id: String(item.id || makeId()), points: Number(item.points), reason: item.reason.slice(0, 60), stamp: String(item.stamp || '') })) : []
     }
+  }
+
+  function validDecayRates(rates) {
+    return rates && typeof rates === 'object' && Object.entries(DECAY_RATE_LIMITS).every(([stat, [min, max]]) => {
+      const value = rates[stat]
+      return Number.isSafeInteger(value) && value >= min && value <= max
+    })
+  }
+  function createDecayRates(id) {
+    return Object.fromEntries(Object.entries(DECAY_RATE_LIMITS).map(([stat, [min, max]]) => {
+      let hash = 2166136261
+      for (const char of `${id}:${stat}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619)
+      return [stat, min + (hash >>> 0) % (max - min + 1)]
+    }))
+  }
+  function petDecayPeriod(pet, stat) {
+    const rate = pet.decayRates?.[stat] ?? BASE_DECAY_RATES[stat]
+    return stat === 'health' ? 60 * 60 * 1000 : Math.floor(60 * 60 * 1000 / rate)
+  }
+  function normalizePet(item) {
+    const hasRates = validDecayRates(item.decayRates)
+    const pet = {
+      id: String(item.id || makeId()), species: String(item.species || '宠物'), name: item.name.slice(0, 20), emoji: String(item.emoji || '🐾'),
+      happiness: clamp(item.happiness, 0, 100, 72), satiety: clamp(item.satiety, 0, 100, 75), playCount: nonNegativeInt(item.playCount),
+      health: item.health == null ? 100 : clamp(item.health, 0, 100, 100),
+      healthUpdatedAt: validNeedsTimestamp(item.healthUpdatedAt) ? Number(item.healthUpdatedAt) : Date.now(),
+      needsUpdatedAt: validNeedsTimestamp(item.needsUpdatedAt) ? Number(item.needsUpdatedAt) : Date.now()
+    }
+    if (hasRates) pet.decayRates = Object.fromEntries(Object.keys(BASE_DECAY_RATES).map(stat => [stat, item.decayRates[stat]]))
+    for (const stat of Object.keys(BASE_DECAY_RATES)) pet[`${stat}RemainderMs`] = needsRemainder(item[`${stat}RemainderMs`], petDecayPeriod(pet, stat))
+    if (!hasRates) {
+      // Settle old clocks at their old rates, then preserve fractional progress at the new rates.
+      advancePetNeeds(pet, Date.now(), true)
+      const progress = Object.fromEntries(Object.keys(BASE_DECAY_RATES).map(stat => [stat, pet[`${stat}RemainderMs`] / petDecayPeriod(pet, stat)]))
+      pet.decayRates = createDecayRates(pet.id)
+      for (const stat of Object.keys(BASE_DECAY_RATES)) pet[`${stat}RemainderMs`] = Math.floor(progress[stat] * petDecayPeriod(pet, stat))
+    }
+    return pet
   }
 
   let state = loadState()
@@ -447,14 +477,16 @@
       return { changed: true, valuesChanged: false }
     }
     if (now === pet.healthUpdatedAt) return { changed: false, valuesChanged: false }
-    const start = Math.max(pet.healthUpdatedAt, now - 4 * 24 * 60 * 60 * 1000)
-    const elapsed = needsRemainder(pet.healthRemainderMs, HEALTH_DECAY_MS) + awakeTimeBetween(start, now)
-    const loss = Math.floor(elapsed / HEALTH_DECAY_MS) * 2
+    // Seven local days exceed 100 awake hours, including the slowest health profile.
+    const start = Math.max(pet.healthUpdatedAt, now - 7 * 24 * 60 * 60 * 1000)
+    const period = petDecayPeriod(pet, 'health')
+    const elapsed = needsRemainder(pet.healthRemainderMs, period) + awakeTimeBetween(start, now)
+    const loss = Math.floor(elapsed / period) * (pet.decayRates?.health ?? BASE_DECAY_RATES.health)
     if (!checkpoint && !loss) return { changed: false, valuesChanged: false }
     const health = Math.max(0, pet.health - loss), valuesChanged = health !== pet.health
     pet.health = health
     pet.healthUpdatedAt = now
-    pet.healthRemainderMs = health > 0 ? elapsed % HEALTH_DECAY_MS : 0
+    pet.healthRemainderMs = health > 0 ? elapsed % period : 0
     return { changed: true, valuesChanged }
   }
   function advancePetNeeds(pet, now = Date.now(), checkpoint = false) {
@@ -469,16 +501,17 @@
     // Four local days already exceed the time needed for both values to reach zero.
     const start = Math.max(pet.needsUpdatedAt, now - 4 * 24 * 60 * 60 * 1000)
     const awake = awakeTimeBetween(start, now)
-    const hunger = needsRemainder(pet.satietyRemainderMs, SATIETY_DECAY_MS) + awake
-    const mood = needsRemainder(pet.happinessRemainderMs, HAPPINESS_DECAY_MS) + awake
-    const hungerLoss = Math.floor(hunger / SATIETY_DECAY_MS), moodLoss = Math.floor(mood / HAPPINESS_DECAY_MS)
+    const hungerPeriod = petDecayPeriod(pet, 'satiety'), moodPeriod = petDecayPeriod(pet, 'happiness')
+    const hunger = needsRemainder(pet.satietyRemainderMs, hungerPeriod) + awake
+    const mood = needsRemainder(pet.happinessRemainderMs, moodPeriod) + awake
+    const hungerLoss = Math.floor(hunger / hungerPeriod), moodLoss = Math.floor(mood / moodPeriod)
     if (!checkpoint && !hungerLoss && !moodLoss) return healthChange
     const satiety = Math.max(0, pet.satiety - hungerLoss), happiness = Math.max(0, pet.happiness - moodLoss)
     const valuesChanged = satiety !== pet.satiety || happiness !== pet.happiness
     pet.satiety = satiety
     pet.happiness = happiness
-    pet.satietyRemainderMs = satiety > 0 ? hunger % SATIETY_DECAY_MS : 0
-    pet.happinessRemainderMs = happiness > 0 ? mood % HAPPINESS_DECAY_MS : 0
+    pet.satietyRemainderMs = satiety > 0 ? hunger % hungerPeriod : 0
+    pet.happinessRemainderMs = happiness > 0 ? mood % moodPeriod : 0
     pet.needsUpdatedAt = now
     return { changed: true, valuesChanged: valuesChanged || healthChange.valuesChanged }
   }
@@ -779,15 +812,18 @@
     const sleeping = isPetSleeping()
     return `<section class="${pet ? 'pet-medicine-box' : 'story-section'}" aria-label="健康药箱"><div class="section-title"><h2>健康小药箱</h2><span class="section-note">${pet ? `当前健康度 ${pet.health}%` : '恢复到 100% 后再互动'}</span></div><div class="${pet ? 'pet-supply-grid' : 'medicine-shop-grid'}">${Object.entries(MEDICINES).map(([key, item]) => `<div class="${pet ? 'pet-supply-row' : 'panel medicine-product'}" data-medicine-product="${key}"><span class="supply-icon medicine-icon" aria-hidden="true">${item.icon}</span><div class="supply-copy"><strong>${item.name}</strong><small>健康度 +${item.recovery} · 最高 100%</small><em>药箱里还有 ${state.medicines[key]} 份</em></div><div class="supply-actions">${pet ? `<button type="button" class="secondary-button button-small" data-action="use-medicine" data-item="${key}" data-id="${escapeHtml(pet.id)}" ${busy || sleeping || pet.health >= 100 || state.medicines[key] < 1 ? 'disabled' : ''}>${sleeping ? '睡觉中' : petAnimation?.petId === pet.id && petAnimation.type === 'healing' ? '恢复中…' : pet.health >= 100 ? '已健康' : item.action}</button>` : ''}<button type="button" class="${pet ? 'quiet-button' : 'primary-button button-small'}" data-action="buy-medicine" data-item="${key}">购买 · ${item.price}分</button></div></div>`).join('')}</div><p class="supply-note">胶囊和针剂每次消耗 1 份，所有伙伴共用库存。使用后重新开始健康计时；睡觉时可以购买，06:00 后再使用。</p></section>`
   }
-  function renderPetNeedsRule() {
-    return '<div class="pet-needs-rule"><span aria-hidden="true">⏳</span><div><strong>白天每小时：饱饱度 −6 · 开心度 −4 · 健康度 −2</strong><small>健康度每累计 1 个白天小时降 2 点，低于 100% 时先用胶囊或打针恢复，再喂食、陪玩和出游。22:30–06:00 暂停消耗与互动；离线后再打开也会补算。</small></div></div>'
+  function renderPetNeedsRule(pet) {
+    const rates = pet?.decayRates
+    const title = rates ? `${escapeHtml(pet.name)}每小时约：${[['饱饱度', 'satiety'], ['开心度', 'happiness'], ['健康度', 'health']].map(([label, stat]) => `<span style="white-space:nowrap">${label} −${rates[stat]}</span>`).join(' · ')}` : '每只小伙伴，都有自己的消耗速度'
+    const detail = rates ? '每位伙伴的三项速度都有固定的小差异，切换伙伴可查看。' : '白天每小时：饱饱度 −5～7、开心度 −3～5、健康度 −1～3，均为整数点。'
+    return `<div class="pet-needs-rule"><span aria-hidden="true">⏳</span><div><strong>${title}</strong><small>${detail}健康度低于 100% 时先恢复，再喂食、陪玩或出游。22:30–06:00 暂停消耗与互动；离线后再打开也会补算。</small></div></div>`
   }
   function renderPets() {
     const sleeping = isPetSleeping()
     const restNotice = sleeping ? renderPetRestNotice() : ''
-    const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`) + renderPetNeedsRule()
-    if (!state.pets.length) return `${heading}${restNotice}<div class="panel empty-state pet-house-empty"><span class="empty-icon">🐾</span><strong>小家在等第一位伙伴</strong><p>完成作业攒积分，领养后就能在这里喂它、陪它玩。</p><button class="primary-button" data-view="shop">${sleeping ? '去小铺看看 →' : '去领养小伙伴 →'}</button></div>`
     const pet = state.pets.find(item => item.id === activePetId) || state.pets[0]
+    const heading = renderHeading('小小陪伴，慢慢长大', '宠物的小家', '学习累了，就来陪小伙伴待一会儿。', `<span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span>`) + renderPetNeedsRule(pet)
+    if (!state.pets.length) return `${heading}${restNotice}<div class="panel empty-state pet-house-empty"><span class="empty-icon">🐾</span><strong>小家在等第一位伙伴</strong><p>完成作业攒积分，领养后就能在这里喂它、陪它玩。</p><button class="primary-button" data-view="shop">${sleeping ? '去小铺看看 →' : '去领养小伙伴 →'}</button></div>`
     activePetId = pet.id
     const mode = sleeping ? 'sleeping' : petAnimation?.petId === pet.id ? petAnimation.type : 'idle'
     const scene = mode === 'playing' ? petAnimation.scene : 'home'
@@ -1055,6 +1091,7 @@
     if (state.points < product.price) return showInsufficientPoints(product.price)
     const count = state.pets.filter(pet => pet.species === product.species).length
     const pet = { id: makeId(), species: product.species, name: count ? `${product.nameBase}${count + 1}` : product.nameBase, emoji: product.emoji, happiness: 72, satiety: 75, health: 100, playCount: 0, needsUpdatedAt: Date.now(), satietyRemainderMs: 0, happinessRemainderMs: 0, healthUpdatedAt: Date.now(), healthRemainderMs: 0 }
+    pet.decayRates = createDecayRates(pet.id)
     state.points -= product.price
     state.pets.push(pet)
     addLog(`领养了${pet.name}，欢迎新伙伴回家`)
