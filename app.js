@@ -49,6 +49,10 @@
   let draftPhotos = []
   let processingPhotos = false
   let savingTask = false
+  let editingTaskId = ''
+  let editingTaskSnapshot = ''
+  let loadingTaskEdit = false
+  let taskEditRequest = 0
   let backupBusy = false
   let preparedBackup = null
   let backupShareBusy = false
@@ -236,11 +240,11 @@
   function selectTaskDate(key) {
     if (!isValidDateKey(key) || savingTask) return
     selectedTaskDate = key
-    if (!taskDraft.title.trim() && !draftPhotos.length) { taskDraft.scheduledDate = key; taskDraft.extraDates = [] }
+    if (!editingTaskId && !taskDraft.title.trim() && !draftPhotos.length) { taskDraft.scheduledDate = key; taskDraft.extraDates = [] }
     render()
   }
   function chooseAssignmentDays(count) {
-    if (savingTask) return
+    if (savingTask || editingTaskId) return
     const dates = weekDates(taskDraft.scheduledDate || selectedTaskDate).slice(0, count)
     taskDraft.scheduledDate = dates[0]
     taskDraft.extraDates = dates.slice(1)
@@ -251,8 +255,8 @@
     if (today !== observedTaskToday) {
       const previous = observedTaskToday
       observedTaskToday = today
-      if (selectedTaskDate === previous && !taskDraft.title.trim() && !draftPhotos.length) { selectedTaskDate = today; taskDraft.scheduledDate = ''; taskDraft.extraDates = [] }
-      if (currentView === 'home' || (currentView === 'tasks' && !taskDraft.title.trim() && !draftPhotos.length)) render()
+      if (!editingTaskId && selectedTaskDate === previous && !taskDraft.title.trim() && !draftPhotos.length) { selectedTaskDate = today; taskDraft.scheduledDate = ''; taskDraft.extraDates = [] }
+      if (currentView === 'home' || (currentView === 'tasks' && !editingTaskId && !taskDraft.title.trim() && !draftPhotos.length)) render()
     }
     refreshTaskAvailability()
   }
@@ -327,16 +331,18 @@
   function renderDraftPhotos() {
     const container = document.querySelector('#draft-photos')
     if (!container) return
-    container.innerHTML = draftPhotos.map((photo, index) => `<div class="draft-photo-card"><button type="button" class="draft-photo-preview" data-action="preview-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="放大待添加的作业照片 ${index + 1}"><img src="${escapeHtml(photo.url)}" alt="待添加的作业照片 ${index + 1}"></button><button type="button" class="remove-photo" data-action="remove-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="移除作业照片 ${index + 1}">×</button></div>`).join('')
-    document.querySelector('#photo-selection-status').textContent = processingPhotos ? '正在处理照片…' : draftPhotos.length ? `已选 ${draftPhotos.length} / ${MAX_TASK_PHOTOS} 张 · 点击照片放大` : `可拍下作业页、题目或老师的要求，最多 ${MAX_TASK_PHOTOS} 张`
-    const busy = processingPhotos || savingTask
-    document.querySelectorAll('#task-form input').forEach(input => { input.disabled = savingTask || input.hasAttribute('data-required-date') })
+    container.innerHTML = draftPhotos.map((photo, index) => `<div class="draft-photo-card"><button type="button" class="draft-photo-preview" data-action="preview-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="放大待添加的作业照片 ${index + 1}" ${photo.url ? '' : 'disabled'}>${photo.url ? `<img src="${escapeHtml(photo.url)}" alt="待添加的作业照片 ${index + 1}">` : '<span>原照片暂无法读取<br>保存后保留记录</span>'}</button><button type="button" class="remove-photo" data-action="remove-draft-photo" data-id="${escapeHtml(photo.id)}" aria-label="移除作业照片 ${index + 1}">×</button></div>`).join('')
+    document.querySelector('#photo-selection-status').textContent = loadingTaskEdit ? '正在读取原有照片…' : processingPhotos ? '正在处理照片…' : draftPhotos.length ? `已选 ${draftPhotos.length} / ${MAX_TASK_PHOTOS} 张 · 点击照片放大` : `可拍下作业页、题目或老师的要求，最多 ${MAX_TASK_PHOTOS} 张`
+    const busy = processingPhotos || savingTask || loadingTaskEdit
+    document.querySelectorAll('#task-form input').forEach(input => { input.disabled = savingTask || loadingTaskEdit || input.hasAttribute('data-required-date') })
     document.querySelectorAll('#task-form [data-action="assign-school-days"], #task-form [data-action="assign-all-week"], #task-form [data-action="assign-one-day"]').forEach(button => { button.disabled = savingTask })
-    document.querySelectorAll('#task-form button[type="submit"], .remove-photo').forEach(button => { button.disabled = busy })
+    document.querySelectorAll('#task-form button[type="submit"]').forEach(button => { button.disabled = busy || Boolean(taskEditProblem()) })
+    document.querySelectorAll('.remove-photo').forEach(button => { button.disabled = busy })
+    document.querySelectorAll('[data-action="cancel-task-edit"]').forEach(button => { button.disabled = savingTask || processingPhotos })
     document.querySelectorAll('[data-action="take-task-photo"], [data-action="choose-task-photos"]').forEach(button => { button.disabled = busy || draftPhotos.length >= MAX_TASK_PHOTOS })
   }
   async function addDraftPhotos(files) {
-    if (processingPhotos || savingTask || !files.length) return
+    if (processingPhotos || savingTask || loadingTaskEdit || !files.length) return
     const remaining = MAX_TASK_PHOTOS - draftPhotos.length
     const selection = Array.from(files).slice(0, remaining)
     processingPhotos = true
@@ -356,17 +362,21 @@
     }
   }
   function removeDraftPhoto(id) {
-    if (processingPhotos || savingTask) return
+    if (processingPhotos || savingTask || loadingTaskEdit) return
     const photo = draftPhotos.find(item => item.id === id)
-    if (photo) URL.revokeObjectURL(photo.url)
+    if (photo?.url) URL.revokeObjectURL(photo.url)
     draftPhotos = draftPhotos.filter(item => item.id !== id)
     renderDraftPhotos()
   }
-  function clearTaskDraft() {
-    draftPhotos.forEach(photo => URL.revokeObjectURL(photo.url))
+  function clearTaskDraft(resetDate = true) {
+    taskEditRequest += 1
+    loadingTaskEdit = false
+    editingTaskId = ''
+    editingTaskSnapshot = ''
+    draftPhotos.forEach(photo => { if (photo.url) URL.revokeObjectURL(photo.url) })
     draftPhotos = []
     taskDraft = newTaskDraft()
-    selectedTaskDate = localDateKey()
+    if (resetDate) selectedTaskDate = localDateKey()
   }
   function renderTaskPhotos(task) {
     if (!task.photos.length) return ''
@@ -653,9 +663,89 @@
       <section class="panel activity-panel"><div class="section-title"><h2>最近的小故事</h2><span class="section-note">每一次努力都有记录</span></div>${renderActivity(4)}</section>`
   }
 
-  function renderTaskCard(task) {
+  function taskSignature(task) {
+    return JSON.stringify([task.id, task.title, task.subject, task.reward, task.scheduledDate, task.timeWindow ? [task.timeWindow.start, task.timeWindow.end] : null, task.completed, task.completedAt, task.photos.map(photo => [photo.id, photo.name])])
+  }
+  function taskEditProblem() {
+    if (!editingTaskId) return ''
+    const task = state.tasks.find(item => item.id === editingTaskId)
+    if (!task) return '这项作业已被移除，请取消编辑。'
+    if (task.completed) return '这项作业已经完成，不能再修改，请取消编辑。'
+    if (taskSignature(task) !== editingTaskSnapshot) return '这项作业已在其他页面更新，请取消编辑后重新打开。'
+    return ''
+  }
+  function focusTaskForm() {
+    if (currentView !== 'tasks') return
+    const field = document.querySelector('#task-form [name="title"]')
+    field?.focus({ preventScroll: true })
+    document.querySelector('.task-add-panel')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  }
+  function requestTaskEdit(id, opener) {
+    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy || actionDialog.open) return
+    state = loadState()
+    const task = state.tasks.find(item => item.id === id)
+    if (!task || task.completed) return showToast('已完成的任务不能重新编辑', true)
+    if (editingTaskId === id && !taskEditProblem()) return focusTaskForm()
+    const hasDraft = editingTaskId || taskDraft.title.trim() || taskDraft.subject.trim() || taskDraft.reward !== '10' || taskDraft.timeRestricted || draftPhotos.length
+    if (hasDraft) {
+      dialogFlow = { stage: 'replace-task-draft', taskId: id }
+      dialogContent('切换到这项作业？', '当前表单中未保存的修改会被放下，已保存的作业不会改变。', '<div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">继续当前草稿</button><button type="button" class="primary-button" data-action="confirm-task-edit">放下草稿，继续编辑</button></div>')
+      showActionDialog(opener)
+      return
+    }
+    startTaskEdit(id)
+  }
+  async function startTaskEdit(id) {
+    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
+    state = loadState()
+    const task = state.tasks.find(item => item.id === id)
+    if (!task || task.completed) return showToast('已完成的任务不能重新编辑', true)
+    clearTaskDraft(false)
+    editingTaskId = id
+    editingTaskSnapshot = taskSignature(task)
+    taskDraft = { title: task.title, subject: task.subject, reward: String(task.reward), scheduledDate: task.scheduledDate, extraDates: [], timeRestricted: Boolean(task.timeWindow), startTime: task.timeWindow?.start || '18:00', endTime: task.timeWindow?.end || '21:00' }
+    selectedTaskDate = task.scheduledDate
+    const request = ++taskEditRequest
+    loadingTaskEdit = true
+    render()
+    const photos = await Promise.all(task.photos.map(async photo => {
+      try {
+        const record = await readPhoto(photo.id)
+        return { id: photo.id, name: photo.name, existing: true, blob: record?.blob, url: record?.blob ? URL.createObjectURL(record.blob) : '' }
+      } catch (_) { return { id: photo.id, name: photo.name, existing: true, url: '' } }
+    }))
+    if (request !== taskEditRequest) { photos.forEach(photo => { if (photo.url) URL.revokeObjectURL(photo.url) }); return }
+    draftPhotos = photos
+    loadingTaskEdit = false
+    render()
+    focusTaskForm()
+  }
+  function cancelTaskEdit() {
+    if (savingTask || processingPhotos) return
+    clearTaskDraft(false)
+    render()
+    showToast('已取消编辑，原任务保持不变')
+  }
+  function moveTask(id, direction) {
+    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy || ![-1, 1].includes(direction)) return
+    state = loadState()
+    const index = state.tasks.findIndex(task => task.id === id)
+    if (index < 0) return
+    const day = state.tasks[index].scheduledDate
+    const positions = state.tasks.map((task, position) => task.scheduledDate === day ? position : -1).filter(position => position >= 0)
+    const neighbor = positions[positions.indexOf(index) + direction]
+    if (neighbor == null) return
+    ;[state.tasks[index], state.tasks[neighbor]] = [state.tasks[neighbor], state.tasks[index]]
+    if (commit('任务顺序已保存')) {
+      const card = [...document.querySelectorAll('.task-card')].find(item => item.dataset.taskId === id)
+      card?.focus({ preventScroll: true })
+      card?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+    }
+  }
+  function renderTaskCard(task, index, total) {
     const availability = taskAvailability(task)
-    return `<article class="panel task-card ${task.completed ? 'completed' : ''}"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '当日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}" ${availability.allowed ? '' : 'disabled'}>${availability.button}</button>`}</div>${renderTaskPhotos(task)}<div class="task-card-actions"><span class="task-completed-at task-availability" data-status="${availability.status}">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : escapeHtml(availability.message)}</span>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}">移除此任务</button>`}</div></article>`
+    const busy = savingTask || processingPhotos || loadingTaskEdit
+    return `<article class="panel task-card ${task.completed ? 'completed' : ''} ${editingTaskId === task.id ? 'is-editing' : ''}" data-task-id="${escapeHtml(task.id)}" aria-label="作业：${escapeHtml(task.title)}" tabindex="-1"><div class="task-card-main"><span class="task-icon">${task.completed ? '✓' : '📚'}</span><div class="task-info"><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.subject || '当日任务')} · 奖励 ${task.reward} 积分</small></div>${task.completed ? '<span class="task-state">已打卡</span>' : `<button class="secondary-button button-small" data-action="complete-task" data-id="${escapeHtml(task.id)}" ${availability.allowed ? '' : 'disabled'}>${availability.button}</button>`}</div>${renderTaskPhotos(task)}<div class="task-card-actions"><span class="task-completed-at task-availability" data-status="${availability.status}">${task.completed ? `完成于 ${escapeHtml(task.completedAt)}` : escapeHtml(availability.message)}</span><div class="task-edit-actions"><div class="task-reorder" aria-label="调整展示顺序"><button type="button" class="task-order-button" data-action="move-task" data-id="${escapeHtml(task.id)}" data-direction="-1" aria-label="上移「${escapeHtml(task.title)}」" ${index === 0 || busy ? 'disabled' : ''}>↑ 上移</button><button type="button" class="task-order-button" data-action="move-task" data-id="${escapeHtml(task.id)}" data-direction="1" aria-label="下移「${escapeHtml(task.title)}」" ${index === total - 1 || busy ? 'disabled' : ''}>↓ 下移</button></div>${task.completed ? '<span class="reward-mini">已获得积分 ✦</span>' : `<button type="button" class="task-edit-button" data-action="edit-task" data-id="${escapeHtml(task.id)}" ${busy ? 'disabled' : ''}>${editingTaskId === task.id ? '正在编辑' : '编辑'}</button><button type="button" class="delete-task" data-action="delete-task" data-id="${escapeHtml(task.id)}" ${busy ? 'disabled' : ''}>移除此任务</button>`}</div></div></article>`
   }
   function renderWeekCalendar() {
     const dates = weekDates(selectedTaskDate)
@@ -669,6 +759,7 @@
   }
   function renderAssignmentDates() {
     const primary = taskDraft.scheduledDate || selectedTaskDate
+    if (editingTaskId) return `<div class="assignment-field"><label class="assignment-primary"><span class="field-label">安排到哪一天</span><input class="text-input" name="scheduledDate" type="date" value="${primary}" required></label><p class="form-help">只修改这一项作业，不影响其他日期已安排的作业。</p></div>`
     const dates = weekDates(primary)
     const weekdays = ['一', '二', '三', '四', '五', '六', '日']
     return `<div class="assignment-field"><label class="assignment-primary"><span class="field-label">安排到哪一天</span><input class="text-input" name="scheduledDate" type="date" value="${primary}" required></label><div class="assignment-shortcuts"><button type="button" class="text-button" data-action="assign-school-days">周一至周五</button><button type="button" class="text-button" data-action="assign-all-week">整周每天</button><button type="button" class="text-button" data-action="assign-one-day">仅这一天</button></div><fieldset class="assignment-week"><legend>同样的作业还要安排到（可多选）</legend><div class="assignment-week-grid">${dates.map((date, index) => `<label class="assignment-day"><input type="checkbox" name="extraDate" value="${date}" ${date === primary || taskDraft.extraDates.includes(date) ? 'checked' : ''} ${date === primary ? 'disabled data-required-date' : ''}><span>周${weekdays[index]}</span><small>${Number(date.slice(5, 7))}/${Number(date.slice(-2))}</small></label>`).join('')}</div></fieldset><p class="form-help">每个日期会生成独立作业，积分分别领取；内容、参考照片和时间规则相同。</p></div>`
@@ -678,16 +769,16 @@
   }
   function renderTasks() {
     const dailyTasks = state.tasks.filter(task => task.scheduledDate === selectedTaskDate)
-    const tasks = dailyTasks.map(renderTaskCard).join('')
+    const tasks = dailyTasks.map((task, index) => renderTaskCard(task, index, dailyTasks.length)).join('')
     return `${renderHeading('慢慢来，每一步都算数', '作业打卡', '按日期安排每一天，也可以提前布置整周作业。', `<div class="heading-actions"><span class="points-pill"><span>✦</span><strong>${state.points}</strong><small>积分</small></span><button class="outline-button" data-action="parent-reward">✦ 大人奖励</button></div>`)}${renderWeekCalendar()}
       <section class="task-list-section"><div class="section-title"><h2>${selectedTaskDate === localDateKey() ? '今天 · ' : ''}${taskDateLabel(selectedTaskDate)}</h2><span class="section-note">${dailyTasks.length} 项</span></div>${tasks ? `<div class="task-list">${tasks}</div>` : `<div class="panel empty-state"><span class="empty-icon">📝</span><strong>这一天还没有安排作业</strong><p>在下方添加，可一次选择多个日期，提前安排一周的作业。</p></div>`}<div class="checkin-banner"><span>🌼</span><div>作业照片和打卡记录只保存在当前浏览器，可通过“下载数据备份”一起备份。</div></div></section>
-      <section class="panel task-add-panel"><div class="task-add-head"><span>＋</span><strong>安排新作业</strong></div><form id="task-form" class="task-form">
-        <label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="40" placeholder="例如：完成数学练习册第 3 页" value="${escapeHtml(taskDraft.title)}" required></label>
-        <label class="form-subject-field"><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="20" placeholder="例如：数学" value="${escapeHtml(taskDraft.subject)}"></label>
+      <section class="panel task-add-panel ${editingTaskId ? 'is-editing' : ''}"><div class="task-add-head"><span>${editingTaskId ? '✎' : '＋'}</span><strong>${editingTaskId ? '编辑未完成作业' : '安排新作业'}</strong></div>${editingTaskId && taskEditProblem() ? `<p class="task-edit-warning" role="status">${escapeHtml(taskEditProblem())}</p>` : ''}<form id="task-form" class="task-form">
+        <label class="form-title-field"><span class="field-label">作业内容</span><input class="text-input" name="title" maxlength="60" placeholder="例如：完成数学练习册第 3 页" value="${escapeHtml(taskDraft.title)}" required></label>
+        <label class="form-subject-field"><span class="field-label">科目 / 备注（可不填）</span><input class="text-input" name="subject" maxlength="30" placeholder="例如：数学" value="${escapeHtml(taskDraft.subject)}"></label>
         <label class="reward-field"><span class="field-label">完成奖励（积分）</span><input class="text-input reward-input" name="reward" type="number" min="1" max="9007199254740991" step="1" value="${escapeHtml(taskDraft.reward)}" inputmode="numeric" required></label>
         ${renderAssignmentDates()}${renderTaskWindowFields()}
         <div class="task-photo-field"><span class="field-label">作业照片（选填）</span><div class="photo-upload-actions"><button type="button" class="outline-button" data-action="take-task-photo">📷 拍照</button><button type="button" class="outline-button" data-action="choose-task-photos">▧ 从相册选择</button></div><div id="draft-photos" class="draft-photo-grid"></div><p id="photo-selection-status" class="photo-selection-status" role="status"></p><span class="photo-local-note">照片只保存在这个浏览器，添加到作业后也可以点开放大。</span></div>
-        <div class="form-submit-field"><button class="primary-button" type="submit">添加到清单 <span>→</span></button></div></form></section>`
+        <div class="form-submit-field task-form-submit"><button class="primary-button" type="submit">${editingTaskId ? '保存修改' : '添加到清单 <span>→</span>'}</button>${editingTaskId ? '<button type="button" class="outline-button" data-action="cancel-task-edit">取消编辑</button>' : ''}</div></form></section>`
   }
 
   function petKind(pet) {
@@ -909,42 +1000,81 @@
   }
 
   async function addTask(form) {
-    if (savingTask || processingPhotos) return
+    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
+    state = loadState()
+    const editId = editingTaskId
+    if (taskEditProblem()) { render(); return showToast(taskEditProblem(), true) }
     const data = new FormData(form)
-    const title = String(data.get('title') || '').trim()
+    const title = String(data.get('title') || '').trim().slice(0, 60)
     if (!title) return showToast('先写下作业内容哦')
     const reward = Number(data.get('reward'))
     if (!isValidReward(reward)) return showToast('奖励积分请填写有效的正整数')
-    const dates = [...new Set([String(data.get('scheduledDate') || ''), ...data.getAll('extraDate').map(String)])].sort()
+    const dates = [...new Set([String(data.get('scheduledDate') || ''), ...(editId ? [] : data.getAll('extraDate').map(String))])].sort()
     if (!dates.length || dates.length > 7 || dates.some(date => !isValidDateKey(date))) return showToast('请选择有效日期，一次最多安排 7 天')
     const timeWindow = data.has('timeRestricted') ? { start: String(data.get('startTime') || ''), end: String(data.get('endTime') || '') } : null
     if (timeWindow && !validTimeWindow(timeWindow)) return showToast('请选择有效的开始和结束时间，两者不能相同')
     savingTask = true
     renderDraftPhotos()
     const photos = [...draftPhotos]
-    let previousState
+    const newPhotos = photos.filter(photo => !photo.existing)
+    let previousState, saved = false
     try {
-      await writePhotoRecords(photos)
+      if (newPhotos.length) await writePhotoRecords(newPhotos)
+      state = loadState()
+      if (editId !== editingTaskId || taskEditProblem()) return showToast(taskEditProblem() || '编辑已取消，请重新打开作业', true)
       previousState = structuredClone(state)
-      state.tasks.unshift(...dates.map(scheduledDate => ({ id: makeId(), title, subject: String(data.get('subject') || '').trim(), reward, scheduledDate, timeWindow: timeWindow ? { ...timeWindow } : null, completed: false, completedAt: '', icon: '📚', photos: photos.map(photo => ({ id: photo.id, name: photo.name })) })))
-      addLog(`安排了作业「${title}」到 ${dates.length} 天${photos.length ? `，附 ${photos.length} 张照片` : ''}`)
+      const fields = { title, subject: String(data.get('subject') || '').trim().slice(0, 30), reward, timeWindow: timeWindow ? { ...timeWindow } : null, photos: photos.map(photo => ({ id: photo.id, name: photo.name })) }
+      let oldPhotoIds = []
+      if (editId) {
+        const task = state.tasks.find(item => item.id === editId)
+        oldPhotoIds = task.photos.map(photo => photo.id)
+        const oldDate = task.scheduledDate
+        Object.assign(task, fields, { scheduledDate: dates[0] })
+        if (oldDate !== task.scheduledDate) {
+          state.tasks.splice(state.tasks.indexOf(task), 1)
+          const last = state.tasks.reduce((found, item, index) => item.scheduledDate === task.scheduledDate ? index : found, -1)
+          state.tasks.splice(last < 0 ? state.tasks.length : last + 1, 0, task)
+        }
+        addLog(`修改了作业「${title}」`)
+      } else {
+        state.tasks.unshift(...dates.map(scheduledDate => ({ id: makeId(), ...fields, scheduledDate, completed: false, completedAt: '', icon: '📚' })))
+        addLog(`安排了作业「${title}」到 ${dates.length} 天${photos.length ? `，附 ${photos.length} 张照片` : ''}`)
+      }
       if (!saveState()) {
         state = previousState
-        await writePhotoRecords([], photos.map(photo => photo.id)).catch(() => {})
         return
       }
-      photos.forEach(photo => photoUrls.set(photo.id, photo.url))
+      saved = true
+      photos.forEach(photo => {
+        if (!photo.url) return
+        if (photoUrls.has(photo.id) && photoUrls.get(photo.id) !== photo.url) URL.revokeObjectURL(photoUrls.get(photo.id))
+        photoUrls.set(photo.id, photo.url)
+      })
       draftPhotos = []
       taskDraft = newTaskDraft()
+      editingTaskId = ''
+      editingTaskSnapshot = ''
+      taskEditRequest += 1
       selectedTaskDate = dates[0]
-      render()
-      showToast(dates.length > 1 ? `已为 ${dates.length} 天分别安排作业` : '作业添加成功')
+      const keepIds = new Set(referencedPhotoIds())
+      const removeIds = oldPhotoIds.filter(id => !keepIds.has(id))
+      if (removeIds.length) await writePhotoRecords([], removeIds).catch(() => {})
+      removeIds.forEach(id => { if (photoUrls.has(id)) URL.revokeObjectURL(photoUrls.get(id)); photoUrls.delete(id) })
+      showToast(editId ? '修改已保存，完成后按新的积分领取奖励' : dates.length > 1 ? `已为 ${dates.length} 天分别安排作业` : '作业添加成功')
     } catch (_) {
-      if (previousState) state = previousState
-      showToast('照片保存失败，请检查浏览器存储空间后重试')
+      if (!saved) {
+        if (previousState) state = previousState
+        showToast('保存失败，请检查浏览器存储空间后重试；原任务已保留')
+      }
     } finally {
+      if (!saved && newPhotos.length) await writePhotoRecords([], newPhotos.map(photo => photo.id)).catch(() => {})
       savingTask = false
-      renderDraftPhotos()
+      render()
+      if (saved && editId && currentView === 'tasks') {
+        const card = [...document.querySelectorAll('.task-card')].find(item => item.dataset.taskId === editId)
+        card?.focus({ preventScroll: true })
+        card?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
+      }
     }
   }
   function dialogContent(title, description, body) {
@@ -956,12 +1086,13 @@
     actionDialog.showModal()
   }
   function confirmTask(id, opener) {
-    if (actionDialog.open) return
+    if (actionDialog.open || savingTask || processingPhotos || loadingTaskEdit) return
+    state = loadState()
     const task = state.tasks.find(item => item.id === id)
     if (!task || task.completed) return
     const availability = taskAvailability(task)
     if (!availability.allowed) return showToast(availability.message, true)
-    dialogFlow = { stage: 'complete', taskId: id }
+    dialogFlow = { stage: 'complete', taskId: id, taskSnapshot: taskSignature(task) }
     dialogContent('这项作业完成了吗？', '检查一下有没有漏做的题目，再领取努力的小奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong><small>${taskDateLabel(task.scheduledDate)}${task.timeWindow ? ` · ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}` : ' · 不限时间'}</small>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><p class="dialog-note">确认后标记为已完成，同一项作业只能领取一次积分。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog" autofocus>再检查一下</button><button type="button" class="primary-button" data-action="confirm-task">确认完成，领取积分</button></div>`)
     showActionDialog(opener)
     actionDialog.querySelector('[data-action="close-action-dialog"][autofocus]').focus()
@@ -1054,9 +1185,12 @@
     addLog(`大人奖励 +${points} 积分：${reason}`)
     commit(`收到大人的鼓励！+${points} 积分`)
   }
-  function completeTask(id) {
+  function completeTask(id, expectedSnapshot = null) {
+    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
+    state = loadState()
     const task = state.tasks.find(item => item.id === id)
     if (!task || task.completed) return
+    if (expectedSnapshot && taskSignature(task) !== expectedSnapshot) { render(); return showToast('作业内容已更新，请重新确认完成', true) }
     const availability = taskAvailability(task)
     if (!availability.allowed) { refreshTaskAvailability(); return showToast(availability.message, true) }
     if (!Number.isSafeInteger(state.points + task.reward)) return showToast('积分总数过大，暂时无法领取')
@@ -1067,11 +1201,13 @@
     commit(`真棒！获得 ${task.reward} 积分`)
   }
   async function deleteTask(id) {
+    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
     const task = state.tasks.find(item => item.id === id)
     if (!task || task.completed) return
     if (!window.confirm(`确定移除“${task.title}”吗？`)) return
     state.tasks = state.tasks.filter(item => item.id !== id)
     if (commit('任务已移除')) {
+      if (editingTaskId === id) { clearTaskDraft(false); render() }
       const keepIds = new Set(referencedPhotoIds())
       const removeIds = task.photos.map(photo => photo.id).filter(photoId => !keepIds.has(photoId))
       await writePhotoRecords([], removeIds).catch(() => {})
@@ -1423,10 +1559,14 @@
     if (action === 'assign-all-week') chooseAssignmentDays(7)
     if (action === 'assign-one-day' && !savingTask) { taskDraft.extraDates = []; render() }
     if (action === 'complete-task') confirmTask(button.dataset.id, button)
+    if (action === 'edit-task') requestTaskEdit(button.dataset.id, button)
+    if (action === 'move-task') moveTask(button.dataset.id, Number(button.dataset.direction))
+    if (action === 'cancel-task-edit') cancelTaskEdit()
+    if (action === 'confirm-task-edit' && dialogFlow?.stage === 'replace-task-draft') { const id = dialogFlow.taskId; actionDialog.close(); await startTaskEdit(id) }
     if (action === 'parent-reward') openParentReward(button)
     if (action === 'close-action-dialog') actionDialog.close()
     if (action === 'confirm-task') {
-      if (dialogFlow?.stage === 'complete') { const id = dialogFlow.taskId; actionDialog.close(); completeTask(id) }
+      if (dialogFlow?.stage === 'complete') { const { taskId, taskSnapshot } = dialogFlow; actionDialog.close(); completeTask(taskId, taskSnapshot) }
     }
     if (action === 'confirm-bonus') grantBonus()
     if (action === 'edit-bonus' && dialogFlow?.stage === 'bonus-confirm') { dialogFlow.stage = 'bonus'; renderBonusForm() }
