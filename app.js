@@ -689,7 +689,12 @@
     return '想要你多陪陪它'
   }
   function renderPetMini(pet) {
-    return `<div class="pet-mini"><span class="pet-mini-face individual-pet-avatar" aria-hidden="true">${renderAnimatedAnimal(pet)}</span><div class="pet-mini-copy"><strong>${escapeHtml(pet.name)}</strong><small>开心度 ${pet.happiness}%</small></div></div>`
+    return `<div class="pet-mini"><span class="pet-mini-face individual-pet-avatar" aria-hidden="true">${renderPetAvatar(pet)}</span><div class="pet-mini-copy"><strong>${escapeHtml(pet.name)}</strong><small>开心度 ${pet.happiness}%</small></div></div>`
+  }
+  function renderPetAvatar(pet) {
+    const image = renderAnimatedAnimal(pet)
+    // Rabbit ears are part of its silhouette. Frame the whole head instead of cropping the body thumbnail.
+    return petKind(pet) === 'rabbit' ? image.replace('viewBox="0 0 340 340"', 'viewBox="65 -4 210 242"') : image
   }
 
   function renderHome() {
@@ -901,17 +906,17 @@
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
     const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
     const tail = kind === 'rabbit'
-      ? '<circle cx="233" cy="260" r="26" fill="#fff8eb"/>'
+      ? '<path d="M239 247Q246 238 252 247Q264 246 262 257Q270 266 260 272Q259 283 248 279Q237 283 234 272Q225 266 232 257Q229 248 239 247Z" fill="#fff8eb"/>'
       : kind === 'cat'
         ? '<path d="M226 269C285 287 297 241 281 214C266 192 286 181 299 194" fill="none" stroke="#e5a86e" stroke-width="24"/><path d="M226 269C285 287 297 241 281 214C266 192 286 181 299 194" fill="none" stroke="#a6744d" stroke-width="3"/><path d="M278 250L292 245M274 221L288 216M283 188L287 202" stroke="#bd7d4d" stroke-width="7"/>'
         : '<path d="M226 265Q296 256 280 209Q277 198 268 207Q266 233 233 235Z" fill="#b7804e"/>'
     const ears = kind === 'rabbit'
-      ? '<g class="pet-ear pet-ear-left"><ellipse cx="125" cy="81" rx="24" ry="70" transform="rotate(-13 125 81)" fill="#fff7e8"/><ellipse cx="125" cy="75" rx="12" ry="48" transform="rotate(-13 125 75)" fill="#eab9af" stroke="none"/></g><g class="pet-ear pet-ear-right"><ellipse cx="211" cy="79" rx="24" ry="69" transform="rotate(13 211 79)" fill="#fff7e8"/><ellipse cx="211" cy="73" rx="12" ry="47" transform="rotate(13 211 73)" fill="#eab9af" stroke="none"/></g>'
+      ? '<g class="pet-ear pet-ear-left"><path d="M119 120C107 95 98 51 105 24C110 4 124 1 135 17C150 42 153 83 148 117Z" fill="#fff7e8"/><path d="M126 104C116 80 109 47 115 26Q120 12 126 28C137 50 142 82 137 106Z" fill="#eab9af" stroke="none"/></g><g class="pet-ear pet-ear-right"><path d="M192 117C188 82 193 40 207 16C218 0 232 5 236 25C242 55 233 96 221 120Z" fill="#fff7e8"/><path d="M202 106C198 82 205 48 216 27Q224 13 227 28C232 51 224 82 214 107Z" fill="#eab9af" stroke="none"/></g>'
       : kind === 'cat'
         ? '<g class="pet-ear pet-ear-left"><path d="M91 130L92 66Q94 56 105 64L146 96Z" fill="#e5a86e"/><path d="M104 112L104 80L130 100Z" fill="#eab4a3" stroke="none"/></g><g class="pet-ear pet-ear-right"><path d="M195 96L235 64Q245 56 248 67L249 132Z" fill="#e5a86e"/><path d="M210 100L236 80L237 113Z" fill="#eab4a3" stroke="none"/></g>'
         : '<g class="pet-ear pet-ear-left"><path d="M112 100Q78 81 71 112L61 163Q61 193 84 195Q108 194 112 154Z" fill="#aa7147"/></g><g class="pet-ear pet-ear-right"><path d="M227 100Q261 82 268 112L279 162Q279 194 255 195Q233 194 227 153Z" fill="#aa7147"/></g>'
     const head = kind === 'rabbit'
-      ? '<ellipse cx="170" cy="161" rx="82" ry="71" fill="#fff7e8"/>'
+      ? '<path d="M94 145Q92 105 126 98Q170 86 214 98Q248 107 246 145Q263 167 246 192Q224 225 170 228Q115 224 94 192Q77 167 94 145Z" fill="#fff7e8"/><ellipse cx="151" cy="182" rx="24" ry="19" fill="#edddd0" stroke="none"/><ellipse cx="189" cy="182" rx="24" ry="19" fill="#edddd0" stroke="none"/>'
       : kind === 'cat'
         ? '<path d="M89 129Q97 91 168 91Q238 90 250 130Q272 173 235 204Q210 227 170 227Q127 228 99 204Q70 174 89 129Z" fill="#e5a86e"/><path d="M138 194Q145 167 170 170Q195 167 204 195Q200 219 170 219Q140 219 138 194Z" fill="#fff4df" stroke="none"/><path d="M155 97L161 115M171 95V118M186 98L181 115" stroke="#bc7d4c" stroke-width="7"/>'
         : '<path d="M89 134Q92 95 128 91Q170 80 212 92Q249 96 252 135L252 176Q246 222 171 226Q97 223 89 179Z" fill="#edc48a"/><path d="M135 191Q139 161 170 165Q202 162 206 190Q202 216 171 217Q139 217 135 191Z" fill="#fff4df" stroke="none"/><path d="M174 91Q204 87 222 102Q243 120 233 143Q214 153 204 130Q196 113 179 111Z" fill="#d6a36c" stroke="none"/>'
@@ -926,8 +931,8 @@
           <g class="pet-eating-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M127 155Q136 147 145 155M195 155Q204 147 213 155"/></g>
           <g class="pet-sleep-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M125 153Q136 164 147 153M193 153Q204 164 215 153"/></g>
           <ellipse cx="117" cy="176" rx="12" ry="7" fill="#e8a08c" opacity=".6" stroke="none"/><ellipse cx="224" cy="176" rx="12" ry="7" fill="#e8a08c" opacity=".6" stroke="none"/>
-          <path d="M161 171Q170 166 179 171Q180 179 170 183Q160 178 161 171Z" fill="${kind === 'dog' ? '#604333' : '#cf8c83'}" stroke="none"/>
-          <g class="pet-mouth-idle"><path d="M170 183V188Q160 199 152 190M170 188Q180 199 188 190" fill="none" stroke-width="3"/>${kind === 'dog' ? '<path d="M166 195V203Q170 210 176 203V195" fill="#de9995" stroke="#b97d78" stroke-width="2"/>' : ''}</g>
+          <path d="${kind === 'rabbit' ? 'M164 172Q170 168 176 172Q178 177 170 181Q162 177 164 172Z' : 'M161 171Q170 166 179 171Q180 179 170 183Q160 178 161 171Z'}" fill="${kind === 'dog' ? '#604333' : '#cf8c83'}" stroke="none"/>
+          <g class="pet-mouth-idle">${kind === 'rabbit' ? '<path d="M162 188H178V200Q170 205 162 200Z" fill="#fffdf8" stroke="#b49b86" stroke-width="2"/><path d="M170 189V201M170 181V187Q160 196 153 187M170 187Q180 196 187 187" fill="none" stroke-width="2.5"/>' : '<path d="M170 183V188Q160 199 152 190M170 188Q180 199 188 190" fill="none" stroke-width="3"/>'}${kind === 'dog' ? '<path d="M166 195V203Q170 210 176 203V195" fill="#de9995" stroke="#b97d78" stroke-width="2"/>' : ''}</g>
           <g class="pet-mouth-chew"><ellipse cx="170" cy="191" rx="9" ry="6" fill="#a36950" stroke-width="2"/>${kind === 'rabbit' ? '<path d="M166 186H174V194H166Z" fill="#fff" stroke="none"/>' : ''}</g>${whiskers}
           <path class="pet-sleep-mouth" d="M164 193Q170 197 176 193" fill="none" stroke-width="3"/>
         </g>
@@ -990,7 +995,7 @@
       </div>
       ${renderMedicines(pet, busy)}
       ${renderPetSupplies(pet, busy, lowMood)}
-    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${switchDisabled}><span class="individual-pet-avatar" aria-hidden="true">${renderAnimatedAnimal(friend)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
+    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${switchDisabled}><span class="individual-pet-avatar" aria-hidden="true">${renderPetAvatar(friend)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
   }
 
   function selectPet(id) {
