@@ -7,6 +7,11 @@
     { id: 'cat', species: '猫咪', name: '小猫', nameBase: '咪咪', emoji: '🐱', intro: '软软糯糯，喜欢晒太阳', price: 80, art: 'cat' },
     { id: 'rabbit', species: '兔兔', name: '小兔', nameBase: '跳跳', emoji: '🐰', intro: '蹦蹦跳跳，喜欢胡萝卜', price: 60, art: 'rabbit' }
   ]
+  const PET_NAMES = {
+    dog: ['团团', '豆豆', '布丁', '麦麦', '可乐', '奶盖', '旺仔', '栗子', '点点', '汤圆', '曲奇', '花卷'],
+    cat: ['咪咪', '糯米', '桃桃', '芝麻', '橘子', '奶糖', '泡芙', '月牙', '铃铛', '棉花', '芋圆', '星星'],
+    rabbit: ['跳跳', '雪球', '糯糯', '萝萝', '棉棉', '桃酥', '云朵', '米粒', '小葵', '软糖', '芽芽', '雪糕']
+  }
   const FOOD_PRICE = 20
   const SUPPLY_PRICE = 50
   const TOY_HAPPINESS = 20
@@ -80,7 +85,9 @@
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
       const normalized = normalizeState(saved)
-      if (saved && ((Array.isArray(saved.tasks) && saved.tasks.some(task => !isValidDateKey(task?.scheduledDate))) || (Array.isArray(saved.pets) && saved.pets.some(pet => !validNeedsTimestamp(pet?.needsUpdatedAt) || !validNeedsTimestamp(pet?.healthUpdatedAt) || pet?.health == null || !validDecayRates(pet?.decayRates))))) {
+      const savedPets = Array.isArray(saved?.pets) ? saved.pets.filter(pet => pet && typeof pet.name === 'string') : []
+      const petsNeedUpgrade = savedPets.some((pet, index) => !validNeedsTimestamp(pet.needsUpdatedAt) || !validNeedsTimestamp(pet.healthUpdatedAt) || pet.health == null || !validDecayRates(pet.decayRates) || pet.name !== normalized.pets[index].name || JSON.stringify(pet.individuality) !== JSON.stringify(normalized.pets[index].individuality))
+      if (saved && ((Array.isArray(saved.tasks) && saved.tasks.some(task => !isValidDateKey(task?.scheduledDate))) || petsNeedUpgrade)) {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)) } catch (_) { /* Keep readable records even if migration cannot be saved. */ }
       }
       return normalized
@@ -91,6 +98,8 @@
 
   function normalizeState(saved) {
     if (!saved || typeof saved !== 'object') return emptyState()
+    const pets = Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(normalizePet) : []
+    assignPetIdentities(pets)
     return {
         points: nonNegativeInt(saved.points),
         tasks: Array.isArray(saved.tasks) ? saved.tasks.filter(item => item && typeof item.title === 'string').map(item => ({
@@ -100,13 +109,49 @@
           timeWindow: validTimeWindow(item.timeWindow) ? { start: item.timeWindow.start, end: item.timeWindow.end } : null,
           photos: Array.isArray(item.photos) ? item.photos.filter(photo => photo && typeof photo.id === 'string').slice(0, MAX_TASK_PHOTOS).map(photo => ({ id: photo.id, name: typeof photo.name === 'string' ? photo.name.slice(0, 100) : '作业照片' })) : []
         })) : [],
-        pets: Array.isArray(saved.pets) ? saved.pets.filter(item => item && typeof item.name === 'string').map(normalizePet) : [],
+        pets,
         food: nonNegativeInt(saved.food),
         supplies: Object.fromEntries(CATALOG.map(item => [item.id, { toy: saved.supplies?.[item.id]?.toy === true, snacks: nonNegativeInt(saved.supplies?.[item.id]?.snacks) }])),
         medicines: { capsule: nonNegativeInt(saved.medicines?.capsule), injection: nonNegativeInt(saved.medicines?.injection) },
         activityLog: Array.isArray(saved.activityLog) ? saved.activityLog.filter(item => item && typeof item.message === 'string').slice(0, 20).map(item => ({ id: String(item.id || makeId()), message: item.message.slice(0, 120), stamp: String(item.stamp || '') })) : [],
         bonusRewards: Array.isArray(saved.bonusRewards) ? saved.bonusRewards.filter(item => item && isValidReward(item.points) && Number(item.points) <= MAX_BONUS && typeof item.reason === 'string').slice(0, 100).map(item => ({ id: String(item.id || makeId()), points: Number(item.points), reason: item.reason.slice(0, 60), stamp: String(item.stamp || '') })) : []
     }
+  }
+
+  function validPetIdentity(identity) {
+    return identity?.version === 1 && Number.isSafeInteger(identity.number) && identity.number > 0
+  }
+  function assignPetIdentities(pets) {
+    for (const kind of Object.keys(PET_NAMES)) {
+      const friends = pets.filter(pet => petKind(pet) === kind)
+      const numbers = new Set(), assigned = new Set(), names = new Set(), named = new Set()
+      const base = CATALOG.find(item => item.id === kind).nameBase
+      // Reserve existing identities and custom names before upgrading older records.
+      for (const pet of friends) {
+        if (validPetIdentity(pet.individuality) && !numbers.has(pet.individuality.number)) {
+          numbers.add(pet.individuality.number); assigned.add(pet)
+        }
+        const legacyName = !validPetIdentity(pet.individuality) && new RegExp(`^${base}\\d*$`).test(pet.name)
+        if (!legacyName && pet.name.trim() && !names.has(pet.name)) { names.add(pet.name); named.add(pet) }
+      }
+      let next = 1
+      for (const pet of friends) {
+        if (!assigned.has(pet)) {
+          while (numbers.has(next)) next++
+          pet.individuality = { version: 1, number: next }
+          numbers.add(next)
+        }
+        if (!named.has(pet)) {
+          const pool = PET_NAMES[kind], index = pet.individuality.number - 1
+          const stem = pool[index % pool.length]
+          let candidate = index < pool.length ? stem : `${stem}${Math.floor(index / pool.length) + 1}`
+          let suffix = 2
+          while (names.has(candidate)) candidate = `${stem}${suffix++}`
+          pet.name = candidate; names.add(candidate)
+        }
+      }
+    }
+    return pets
   }
 
   function validDecayRates(rates) {
@@ -135,6 +180,7 @@
       healthUpdatedAt: validNeedsTimestamp(item.healthUpdatedAt) ? Number(item.healthUpdatedAt) : Date.now(),
       needsUpdatedAt: validNeedsTimestamp(item.needsUpdatedAt) ? Number(item.needsUpdatedAt) : Date.now()
     }
+    if (validPetIdentity(item.individuality)) pet.individuality = { version: 1, number: item.individuality.number }
     if (hasRates) pet.decayRates = Object.fromEntries(Object.keys(BASE_DECAY_RATES).map(stat => [stat, item.decayRates[stat]]))
     for (const stat of Object.keys(BASE_DECAY_RATES)) pet[`${stat}RemainderMs`] = needsRemainder(item[`${stat}RemainderMs`], petDecayPeriod(pet, stat))
     if (!hasRates) {
@@ -643,7 +689,7 @@
     return '想要你多陪陪它'
   }
   function renderPetMini(pet) {
-    return `<div class="pet-mini"><span class="pet-mini-face">${escapeHtml(pet.emoji)}</span><div class="pet-mini-copy"><strong>${escapeHtml(pet.name)}</strong><small>开心度 ${pet.happiness}%</small></div></div>`
+    return `<div class="pet-mini"><span class="pet-mini-face individual-pet-avatar" aria-hidden="true">${renderAnimatedAnimal(pet)}</span><div class="pet-mini-copy"><strong>${escapeHtml(pet.name)}</strong><small>开心度 ${pet.happiness}%</small></div></div>`
   }
 
   function renderHome() {
@@ -870,11 +916,12 @@
         ? '<path d="M89 129Q97 91 168 91Q238 90 250 130Q272 173 235 204Q210 227 170 227Q127 228 99 204Q70 174 89 129Z" fill="#e5a86e"/><path d="M138 194Q145 167 170 170Q195 167 204 195Q200 219 170 219Q140 219 138 194Z" fill="#fff4df" stroke="none"/><path d="M155 97L161 115M171 95V118M186 98L181 115" stroke="#bc7d4c" stroke-width="7"/>'
         : '<path d="M89 134Q92 95 128 91Q170 80 212 92Q249 96 252 135L252 176Q246 222 171 226Q97 223 89 179Z" fill="#edc48a"/><path d="M135 191Q139 161 170 165Q202 162 206 190Q202 216 171 217Q139 217 135 191Z" fill="#fff4df" stroke="none"/><path d="M174 91Q204 87 222 102Q243 120 233 143Q214 153 204 130Q196 113 179 111Z" fill="#d6a36c" stroke="none"/>'
     const whiskers = kind === 'cat' ? '<g stroke="#9e704f" stroke-width="2.5"><path d="M104 175L73 168M105 185L73 189M234 175L265 167M234 185L265 189"/></g>' : ''
-    return `<svg class="pet-character pet-character-${kind}" viewBox="0 0 340 340" role="img" aria-label="${escapeHtml(pet.name)}${sleeping ? '熟睡的' : '的动态'}${escapeHtml(pet.species)}形象">
+    return window.PetArtwork.finishAnimal(`<svg class="pet-character pet-character-${kind}" viewBox="0 0 340 340" role="img" aria-label="${escapeHtml(pet.name)}${sleeping ? '熟睡的' : '的动态'}${escapeHtml(pet.species)}形象">
       <g stroke="#825e45" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
         <g class="pet-tail">${tail}</g>
         <g class="pet-body"><ellipse cx="170" cy="247" rx="70" ry="64" fill="${fur}"/><ellipse cx="170" cy="259" rx="37" ry="43" fill="${belly}" stroke="none"/><g class="pet-paw pet-paw-back-left"><ellipse cx="120" cy="293" rx="30" ry="16" fill="${fur}"/></g><g class="pet-paw pet-paw-back-right"><ellipse cx="222" cy="293" rx="30" ry="16" fill="${fur}"/></g><g class="pet-paw pet-paw-front-left"><path d="M132 240L128 283Q128 302 145 303Q160 302 160 285L159 249" fill="${belly}"/><path d="M138 291V298M149 291V298" stroke="#c5a78b" stroke-width="2"/></g><g class="pet-paw pet-paw-front-right"><path d="M182 249L181 285Q180 302 197 303Q213 301 211 284L207 241" fill="${belly}"/><path d="M190 291V298M201 291V298" stroke="#c5a78b" stroke-width="2"/></g></g>
-        <g class="pet-head">${ears}${head}
+        ${window.PetArtwork.accessory(pet, kind)}
+        <g class="pet-head">${ears}${head}${window.PetArtwork.markings(pet, kind)}
           <g class="pet-eyes"><ellipse cx="136" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><ellipse cx="204" cy="153" rx="8" ry="11" fill="#4c382d" stroke="none"/><circle cx="138" cy="150" r="2.7" fill="#fff" stroke="none"/><circle cx="206" cy="150" r="2.7" fill="#fff" stroke="none"/></g>
           <g class="pet-eating-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M127 155Q136 147 145 155M195 155Q204 147 213 155"/></g>
           <g class="pet-sleep-eyes" fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M125 153Q136 164 147 153M193 153Q204 164 215 153"/></g>
@@ -885,7 +932,7 @@
           <path class="pet-sleep-mouth" d="M164 193Q170 197 176 193" fill="none" stroke-width="3"/>
         </g>
       </g>
-    </svg>`
+    </svg>`, pet, kind)
   }
   function renderFoodBowl() {
     return `<svg viewBox="0 0 150 80" aria-hidden="true"><ellipse cx="75" cy="68" rx="57" ry="8" fill="#a78366" opacity=".2"/><g class="bowl-kibbles" fill="#bb8050" stroke="#93633e" stroke-width="2"><circle cx="43" cy="30" r="8"/><circle cx="60" cy="23" r="8"/><circle cx="77" cy="27" r="9"/><circle cx="95" cy="23" r="8"/><circle cx="110" cy="31" r="8"/><circle cx="59" cy="35" r="8"/><circle cx="89" cy="35" r="9"/></g><path d="M24 32H126L115 61Q75 76 35 61Z" fill="#a8c5b0" stroke="#779883" stroke-width="4"/><ellipse cx="75" cy="32" rx="51" ry="9" fill="none" stroke="#779883" stroke-width="4"/><path d="M69 48Q66 43 62 46Q60 51 69 56Q80 50 77 46Q73 43 69 48Z" fill="#f3edce" stroke="none"/></svg>`
@@ -918,15 +965,16 @@
     const needsHealth = pet.health < 100
     const kind = petKind(pet)
     const theme = window.PetArtwork.themes[kind]
+    const personal = window.PetArtwork.profile(pet, kind)
     const items = PET_SUPPLIES[kind]
     const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'healing' ? (petAnimation.medicine === 'capsule' ? '啊呜，慢慢恢复元气啦～' : '小小勇敢，恢复健康啦～') : mode === 'toy' ? items.play : mode === 'snacking' ? items.eat : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? (kind === 'cat' ? '扑一扑毛线球，玩得真开心～' : kind === 'rabbit' ? '蹦蹦跳跳，玩一玩小萝卜球～' : '追到小球啦，再跳一跳！') : needsHealth ? '想先恢复健康，再一起玩～' : lowMood ? '想先玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
-    const location = trip ? `${trip.icon} ${pet.name}在${theme[scene]}` : `${pet.name}的${theme.home}`
+    const location = trip ? `${trip.icon} ${pet.name}在${theme[scene]}` : `${pet.name}的${personal.homeLabel}`
     const tripStyle = trip ? ` style="--trip-duration:${TRIP_DURATION}ms;--trip-elapsed:-${Math.min(TRIP_DURATION, Math.max(0, Date.now() - petAnimation.startedAt))}ms"` : ''
     const disabled = busy || needsHealth ? 'disabled' : ''
     const switchDisabled = petAnimation ? 'disabled' : ''
     return `${heading}${restNotice}<div class="pet-room-layout"><section class="pet-house ${trip ? 'is-on-trip' : ''} ${sleeping ? 'pet-house-sleeping' : ''}" aria-label="${escapeHtml(location)}">
       <header class="house-heading"><div><span class="house-eyebrow">${trip ? 'A LITTLE ADVENTURE' : 'MY COZY HOME'}</span><h2>${escapeHtml(location)} <span>${escapeHtml(pet.species)}</span></h2></div>${trip ? '<button type="button" class="trip-return" data-action="return-home">⌂ 回小家</button>' : `<span class="house-food">🥣 <strong>${state.food}</strong> 份饲料</span>`}</header>
-      <div class="pet-room-scene is-${mode} scene-${scene}" data-pet-kind="${petKind(pet)}" data-pet-state="${mode}" data-medicine="${mode === 'healing' ? petAnimation.medicine : ''}" data-scene="${scene}"${tripStyle}>${trip ? renderOutdoorArtwork(scene, kind) : renderRoomArtwork(kind)}
+      <div class="pet-room-scene is-${mode} scene-${scene}" data-pet-kind="${petKind(pet)}" data-pet-individual="${personal.number}" data-pet-state="${mode}" data-medicine="${mode === 'healing' ? petAnimation.medicine : ''}" data-scene="${scene}"${tripStyle}>${trip ? renderOutdoorArtwork(scene, kind) : window.PetArtwork.personalHome(pet, kind, personal.number === 1 ? renderRoomArtwork(kind) : '')}
         <div class="room-vitals"><div class="room-vital" data-stat="satiety"><div><span>🍚 饱饱度</span><strong>${pet.satiety}%</strong></div><div class="room-vital-track"><span style="width:${pet.satiety}%"></span></div></div><div class="room-vital" data-stat="happiness"><div><span>💛 开心度</span><strong>${pet.happiness}%</strong></div><div class="room-vital-track happy"><span style="width:${pet.happiness}%"></span></div></div><div class="room-vital" data-stat="health"><div><span>❤️ 健康度</span><strong>${pet.health}%</strong></div><div class="room-vital-track health"><span style="width:${pet.health}%"></span></div></div></div>
         <div class="pet-speech" role="status" aria-live="polite">${speech}</div>
         <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet, sleeping)}</div>${sleeping ? '<div class="pet-sleep-sign" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div><div class="pet-night-moon" aria-hidden="true">☾</div>' : ''}
@@ -942,7 +990,7 @@
       </div>
       ${renderMedicines(pet, busy)}
       ${renderPetSupplies(pet, busy, lowMood)}
-    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${switchDisabled}><span>${escapeHtml(friend.emoji)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
+    </section><aside class="pet-room-aside"><section class="panel room-friends-panel"><div class="section-title"><h2>我的小伙伴</h2><span class="section-note">${state.pets.length} 只</span></div><div class="room-pet-list">${state.pets.map(friend => `<button class="room-pet-choice ${friend.id === pet.id ? 'selected' : ''}" data-action="select-pet" data-id="${escapeHtml(friend.id)}" aria-pressed="${friend.id === pet.id}" ${switchDisabled}><span class="individual-pet-avatar" aria-hidden="true">${renderAnimatedAnimal(friend)}</span><div><strong>${escapeHtml(friend.name)}</strong><small>${escapeHtml(friend.species)}</small></div><i>${sleeping ? '睡觉中' : friend.id === pet.id ? (trip ? '出游中' : '在家里') : '去看看'}</i></button>`).join('')}</div><div class="room-bond-note"><span>♡</span><div><strong>${petMood(pet)}</strong><small>和${escapeHtml(pet.name)}一起出游过 ${pet.playCount} 次</small></div></div></section><section class="panel room-backpack"><div><span class="backpack-icon">🍪</span><h2>香香饲料</h2><p>背包里还有 <strong>${state.food}</strong> 份</p></div><button class="secondary-button" data-view="shop">去小铺补充 →</button></section><section class="panel room-stories"><div class="section-title"><h2>小家的日记</h2><span class="section-note">温暖的小事</span></div>${renderActivity(4)}</section></aside></div>`
   }
 
   function selectPet(id) {
@@ -1219,11 +1267,11 @@
     const product = CATALOG.find(item => item.id === productId)
     if (!product) return
     if (state.points < product.price) return showInsufficientPoints(product.price)
-    const count = state.pets.filter(pet => pet.species === product.species).length
-    const pet = { id: makeId(), species: product.species, name: count ? `${product.nameBase}${count + 1}` : product.nameBase, emoji: product.emoji, happiness: 72, satiety: 75, health: 100, playCount: 0, needsUpdatedAt: Date.now(), satietyRemainderMs: 0, happinessRemainderMs: 0, healthUpdatedAt: Date.now(), healthRemainderMs: 0 }
+    const pet = { id: makeId(), species: product.species, name: '', emoji: product.emoji, happiness: 72, satiety: 75, health: 100, playCount: 0, needsUpdatedAt: Date.now(), satietyRemainderMs: 0, happinessRemainderMs: 0, healthUpdatedAt: Date.now(), healthRemainderMs: 0 }
     pet.decayRates = createDecayRates(pet.id)
     state.points -= product.price
     state.pets.push(pet)
+    assignPetIdentities(state.pets)
     addLog(`领养了${pet.name}，欢迎新伙伴回家`)
     commit(`${pet.name}来啦！`)
   }
