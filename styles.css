@@ -261,6 +261,15 @@ h1 { margin-bottom: 7px; color: var(--ink); font-size: clamp(25px, 3vw, 33px); l
 .task-card.completed .task-info strong { color: #8c968c; text-decoration: line-through; }
 .task-state { flex-shrink: 0; border-radius: 999px; padding: 6px 9px; background: #edf5eb; color: #67906d; font-size: 9px; font-weight: 700; }
 .task-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 0 51px; padding-top: 12px; border-top: 1px solid #f0f0e9; }
+.task-edit-actions { display: flex; flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 8px; }
+.task-reorder { display: inline-flex; gap: 4px; }
+.task-order-button, .task-edit-button { min-height: 32px; border: 1px solid #e4e8dc; border-radius: 8px; padding: 5px 9px; background: #fafbf6; color: #6c8064; font-size: 10px; cursor: pointer; }
+.task-order-button:disabled { opacity: .35; cursor: default; }
+.task-edit-button { background: #ecf3e7; border-color: #dce8d5; font-weight: 700; }
+.task-card.is-editing, .task-add-panel.is-editing { border-color: #a9c49b; }
+.task-form-submit { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.task-edit-warning { margin: 0 0 16px; padding: 10px 12px; border-radius: 10px; background: #fff1df; color: #9a7044; font-size: 12px; line-height: 1.7; }
+.draft-photo-preview > span { display: block; padding: 7px; color: var(--muted); font-size: 10px; line-height: 1.6; }
 .task-completed-at { color: var(--muted); font-size: 10px; }
 .delete-task { border: 0; background: transparent; color: #b4a69b; cursor: pointer; font-size: 10px; }
 .delete-task:hover { color: #c05d51; }
@@ -384,6 +393,12 @@ h1 { margin-bottom: 7px; color: var(--ink); font-size: clamp(25px, 3vw, 33px); l
   .reward-input { width: 100%; }
   .task-card { padding: 14px; }
   .task-card-actions { margin-left: 0; }
+  .task-card-actions { flex-wrap: wrap; gap: 9px; }
+  .task-edit-actions { width: 100%; justify-content: flex-end; }
+  .task-reorder { margin-right: auto; }
+  .task-order-button, .task-edit-button { min-height: 36px; }
+  .task-add-panel.is-editing .form-submit-field { grid-column: 1 / -1; }
+  .task-add-panel.is-editing .form-submit-field .primary-button { width: auto; }
   .task-photos { margin-left: 0; }
   .task-photo-thumb { width: 80px; height: 80px; }
   .preview-photo-button { width: 34px; height: 34px; }
