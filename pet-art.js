@@ -8,6 +8,92 @@
   const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
   const sceneSvg = (kind, place, body) => `<svg class="room-artwork ${place === 'home' ? '' : 'outdoor-artwork'}" data-pet-scenery="${kind}-${place}" viewBox="0 0 720 650" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${body}</svg>`
   const flowers = (color = '#f0c2c8') => `<g stroke="#8ca779" stroke-width="3"><path d="M117 549V523M600 570V544M160 598V577M558 605V580"/></g><g fill="${color}" stroke="#d5b19d" stroke-width="2"><circle cx="117" cy="519" r="11"/><circle cx="600" cy="540" r="11"/><circle cx="160" cy="574" r="9"/><circle cx="558" cy="577" r="10"/></g><g fill="#f1d78f"><circle cx="117" cy="519" r="4"/><circle cx="600" cy="540" r="4"/><circle cx="160" cy="574" r="3"/><circle cx="558" cy="577" r="4"/></g>`
+  // These choices derive only from the saved identity, never from render time or array order.
+  const coats = {
+    dog: [
+      ['#edc48a', '#aa7147', '#d6a36c', '#fff4df'], ['#b88665', '#73503f', '#8f604b', '#f7e7d2'],
+      ['#f6eee2', '#b08259', '#c39b71', '#fffaf1'], ['#aab5bf', '#687583', '#8796a4', '#f1f3ed'],
+      ['#db9e65', '#a2643e', '#be7d4c', '#fff0da'], ['#eee0be', '#b09e7b', '#c9b68d', '#fff9e8']
+    ],
+    cat: [
+      ['#e5a86e', '#bc7c4c', '#bc7c4c', '#fff4df'], ['#aeb8c2', '#697b8a', '#778995', '#f5f6f0'],
+      ['#f5eee2', '#c49161', '#b78357', '#fffaf1'], ['#6d6b77', '#484650', '#45444e', '#dedde3'],
+      ['#bf956d', '#866246', '#94704f', '#f8ebd6'], ['#e9cfac', '#ba9b78', '#c0a17f', '#fff9ed']
+    ],
+    rabbit: [
+      ['#fff7e8', '#e9bdb6', '#dcc5b0', '#edddd0'], ['#b7b4c1', '#d6b0bd', '#918c9f', '#ece5ed'],
+      ['#d9b387', '#d8aaa3', '#b0865d', '#fff0d8'], ['#7a7478', '#c799aa', '#574f59', '#d8cbd1'],
+      ['#f1e2c2', '#dfb6ab', '#c9b18a', '#fff9e6'], ['#ae8c76', '#d4a49e', '#866650', '#f5e3d1']
+    ]
+  }
+  const roomColors = [
+    ['#f8edda', '#dec3a2', '#e8c18e', '#b59571'], ['#e8eff5', '#c5d3dd', '#adc7d7', '#829cad'],
+    ['#f5e8ed', '#dfc7ce', '#ddb5c1', '#b58e9c'], ['#eaf1df', '#ccd7b6', '#b9c79b', '#90a47d'],
+    ['#eee8f6', '#d2c6e0', '#c5b5dc', '#9e8cb4'], ['#fff0df', '#e9c9ac', '#e6b58c', '#b68e70']
+  ]
+  function profile(pet, kind) {
+    const number = Number.isSafeInteger(pet.individuality?.number) && pet.individuality.number > 0 ? pet.individuality.number : 1
+    const index = number - 1, [fur, ear, patch, belly] = coats[kind][index % coats[kind].length]
+    return { number, fur, ear, patch, belly, pattern: (index + Math.floor(index / 6)) % 3, accessory: (index + Math.floor(index / 18)) % 3,
+      accent: ['#7d9f96', '#d59c8b', '#9c9ac5', '#d0ac63', '#8eaf7a', '#b58ea6'][(index + Math.floor(index / 6)) % 6],
+      room: roomColors[(index + (kind === 'cat' ? 4 : kind === 'rabbit' ? 3 : 0)) % roomColors.length],
+      layout: (number - 2) % 4,
+      homeLabel: number === 1 ? themes[kind].home : ['星光帐篷屋', '书香小屋', '花窗小屋', '积木小屋'][(number - 2) % 4]
+    }
+  }
+  function finishAnimal(svg, pet, kind) {
+    const p = profile(pet, kind), colors = {}
+    const map = (list, color) => list.forEach(key => { colors[key] = color })
+    if (kind === 'dog') {
+      map(['#edc48a'], p.fur); map(['#aa7147', '#b7804e', '#b7814e'], p.ear)
+      map(['#d6a36c', '#d8a771'], p.patch); map(['#fff4df', '#fff2dd'], p.belly)
+    } else if (kind === 'cat') {
+      map(['#e5a86e'], p.fur); map(['#a6744d', '#a5744c', '#bd7d4d', '#bc7d4c', '#bc7c4c', '#bd7d4c'], p.patch)
+      map(['#fff4df', '#fff2dd'], p.belly)
+    } else {
+      map(['#fff7e8', '#fff8eb', '#fff8ee'], p.fur); map(['#edddd0', '#f0e3d4'], p.belly)
+      map(['#e9bdb6', '#eab9af'], p.ear)
+    }
+    return svg.replace(/#[0-9a-f]{6}\b/gi, color => colors[color] || color)
+      .replace('<svg ', `<svg data-pet-look="${kind}-${p.number}" `)
+  }
+  function markings(pet, kind, sleeping = false) {
+    const p = profile(pet, kind)
+    const marks = p.pattern === 1
+      ? `<path d="M156 100Q171 90 184 101L181 130Q170 141 159 130Z" fill="${p.belly}"/><ellipse cx="104" cy="145" rx="14" ry="20" fill="${p.patch}"/>`
+      : p.pattern === 2
+        ? `<path d="M106 112Q127 95 143 107Q149 119 139 133Q118 144 106 127Z" fill="${p.patch}"/><circle cx="228" cy="158" r="10" fill="${p.patch}"/>`
+        : kind === 'rabbit' ? `<path d="M164 104Q172 99 180 104L177 125Q171 133 166 125Z" fill="${p.belly}"/>` : ''
+    return `<g class="pet-personal-markings" stroke="none"${sleeping ? ' transform="translate(-33 3) scale(1 .98)"' : ''}>${marks}</g>`
+  }
+  function accessory(pet, kind, sleeping = false) {
+    const p = profile(pet, kind)
+    const shape = p.accessory === 0
+      ? '<path d="M135 218Q170 232 205 218L177 256Q170 261 163 254Z"/>'
+      : p.accessory === 1
+        ? '<path d="M165 230Q133 207 133 232Q134 249 165 236Q205 255 207 232Q205 209 175 230Z"/><circle cx="170" cy="233" r="9"/>'
+        : '<path d="M137 220Q170 230 203 220L201 233Q169 243 139 233Z"/>'
+    return `<g class="pet-personal-accessory"${sleeping ? ' transform="translate(68 12) rotate(-12 170 235) scale(.8)"' : ''} fill="${p.accent}" stroke="#806e61" stroke-width="2.5">${shape}<circle cx="170" cy="240" r="10" fill="#fff3c9"/><text x="170" y="244" text-anchor="middle" stroke="none" fill="#78623d" font-size="${p.number > 99 ? 7 : 10}" font-family="sans-serif" font-weight="700">${p.number}</text></g>`
+  }
+  function personalHome(pet, kind, original = '') {
+    const p = profile(pet, kind)
+    const sign = `<g class="personal-home-sign"><rect x="302" y="215" width="116" height="49" rx="12" fill="#fffaf0" stroke="${p.accent}" stroke-width="3"/><text x="360" y="236" text-anchor="middle" fill="#8f795f" font-family="sans-serif" font-size="10">${p.number} 号小家</text><text x="360" y="254" text-anchor="middle" fill="#745e49" font-family="sans-serif" font-size="15" font-weight="700" textLength="${Math.min(95, pet.name.length * 15)}" lengthAdjust="spacingAndGlyphs">${escape(pet.name)}</text></g>`
+    if (original) return original.replace('<svg ', `<svg data-home-owner="${kind}-${p.number}" `).replace('</svg>', `${sign}</svg>`)
+    const [wall, floor, cloth, edge] = p.room
+    const windowArt = (x, y, round = false) => `<g transform="translate(${x} ${y})" stroke="${edge}" stroke-width="5"><rect width="150" height="170" rx="${round ? 65 : 10}" fill="#c8e3ed"/><circle cx="112" cy="42" r="21" fill="#ffe6a2" stroke="none"/><path class="room-cloud" d="M9 94Q17 73 34 85Q49 60 65 84Q89 80 97 101H9" fill="#fffdf6" stroke="none"/><path d="M75 3V167M3 100H147"/><path d="M-12 -8H162" stroke-width="8"/><path d="M-8 0H18L10 145L-8 154ZM133 0H158V154L140 145Z" fill="${cloth}" stroke-width="2"/></g>`
+    const shelf = `<g stroke="${edge}" stroke-width="4"><rect x="102" y="203" width="145" height="217" rx="13" fill="#faf3e4"/><path d="M107 277H242M107 349H242"/><g stroke-width="2"><rect x="116" y="228" width="23" height="48" rx="3" fill="${cloth}"/><rect x="143" y="219" width="18" height="57" rx="3" fill="#b2c4aa"/><path d="M167 232L189 226L204 271L183 277Z" fill="#d8ac94"/><rect x="116" y="300" width="115" height="27" rx="8" fill="${cloth}"/><circle cx="175" cy="383" r="22" fill="#e7ce8c"/></g></g>`
+    const furniture = [
+      `<g stroke="${edge}" stroke-width="5" stroke-linejoin="round"><path d="M83 417L181 210L280 417Z" fill="${cloth}"/><path d="M181 231L135 417H228Z" fill="#faf3dd"/><path d="M181 211V180" stroke-width="7"/><path d="M181 180L218 192L181 202Z" fill="#e3b476"/><path d="M125 414Q181 386 238 414" fill="none"/><path d="M145 294L181 309L218 294" fill="none" stroke="#fff6d5" stroke-width="4"/><circle cx="181" cy="309" r="7" fill="#f4d17c"/></g>${windowArt(480, 168)}`,
+      `${shelf}${windowArt(470, 158, true)}<g stroke="${edge}" stroke-width="4"><rect x="457" y="356" width="188" height="59" rx="22" fill="${cloth}"/><path d="M473 412V436M629 412V436"/><path d="M467 362Q491 337 516 363" fill="#fff3dc"/></g>`,
+      `${windowArt(106, 160, true)}<g stroke="${edge}" stroke-width="4"><path d="M470 414V291Q545 211 622 291V414Z" fill="${cloth}"/><path d="M491 414V314Q545 259 600 314V414Z" fill="#fff5e7"/><ellipse cx="545" cy="410" rx="53" ry="13" fill="#d6b8a1"/><path d="M510 264Q544 237 582 264" fill="none" stroke="#fff4d5"/></g><g fill="#9ab38a" stroke="#7e996f" stroke-width="3"><path d="M616 250Q650 220 655 252Q644 273 616 250ZM628 270Q663 265 660 293Q638 309 628 270Z"/></g>`,
+      `${windowArt(458, 152)}<g stroke="${edge}" stroke-width="4" stroke-linejoin="round"><rect x="94" y="315" width="174" height="103" rx="13" fill="${cloth}"/><path d="M82 316L180 239L278 316Z" fill="#fff3d8"/><path d="M140 418V364Q178 330 216 364V418Z" fill="#bda48f"/><rect x="91" y="426" width="43" height="34" rx="6" fill="#e6b78d"/><rect x="139" y="429" width="35" height="32" rx="6" fill="#a8bebc"/><path d="M95 426L113 402L133 426Z" fill="#d7c3df"/></g>`
+    ][p.layout]
+    const keepsake = kind === 'cat' ? `<g transform="translate(590 500)">${toy('cat').replace('<svg ', '<svg width="59" height="59" ')}</g>`
+      : kind === 'rabbit' ? '<g stroke="#b88f60" stroke-width="3"><path d="M112 512L148 517L122 567Z" fill="#e7b375"/><path d="M129 515L117 494M129 515L138 490M129 515L151 498" stroke="#8da774" stroke-width="5"/></g>'
+        : '<path d="M577 525Q559 505 554 524Q546 542 568 545L620 545Q642 556 639 537Q648 514 628 519L620 526Z" fill="#e4b9bc" stroke="#b38a86" stroke-width="3"/>'
+    return sceneSvg(kind, 'home', `<rect width="720" height="650" fill="${wall}"/><g stroke="${edge}" opacity=".12" stroke-width="2"><path d="M0 120H720M0 200H720M0 280H720M0 360H720"/></g><path d="M0 415H720V650H0Z" fill="${floor}"/><path d="M0 415H720" stroke="${edge}" stroke-width="7"/><g stroke="${edge}" opacity=".3" stroke-width="2"><path d="M0 466H720M0 516H720M0 566H720M0 616H720M130 415V466M480 415V466M270 466V516M620 466V516M120 516V566M470 516V566M300 566V616M650 566V616"/></g>${furniture}<ellipse cx="360" cy="550" rx="180" ry="56" fill="${cloth}" stroke="${edge}" stroke-width="3"/><ellipse cx="360" cy="550" rx="158" ry="40" fill="none" stroke="#fff5e6" stroke-width="3" stroke-dasharray="6 8"/>${keepsake}${sign}`).replace('<svg ', `<svg data-home-owner="${kind}-${p.number}" data-home-layout="${p.layout}" `)
+  }
+
   function home(kind) {
     if (kind === 'cat') return sceneSvg(kind, 'home', `<rect width="720" height="650" fill="#f4eef8"/><g stroke="#e8ddea" stroke-width="2"><path d="M80 0V418M180 0V418M280 0V418M380 0V418M480 0V418M580 0V418M680 0V418"/></g><path d="M0 415H720V650H0Z" fill="#decfe0"/><g stroke="#c8b7cb" stroke-width="3"><path d="M0 461H720M0 512H720M0 563H720M0 615H720M170 416V461M490 416V461M330 461V512M100 512V563M570 512V563M290 563V615"/></g>
       <g stroke="#a891ae" stroke-width="5" stroke-linejoin="round"><rect x="124" y="138" width="265" height="231" rx="40" fill="#d8c5df"/><rect x="139" y="153" width="235" height="200" rx="30" fill="#cee4f0"/><g stroke="none"><circle cx="314" cy="195" r="25" fill="#f6dfa1"/><path class="room-cloud" d="M145 249Q153 227 170 238Q179 210 202 229Q229 218 236 249Z" fill="#fbffff"/></g><path d="M255 153V353M139 260H374" stroke="#b5a1be"/><path d="M116 129H397" stroke-width="9" stroke-linecap="round"/><path d="M118 137H151L155 313L118 332ZM363 137H396V332L359 313Z" fill="#e9d8e9" stroke-width="3"/>
@@ -50,7 +136,7 @@
     const rabbit = kind === 'rabbit', cat = kind === 'cat', fur = rabbit ? '#fff7e8' : cat ? '#e5a86e' : '#edc48a'
     const ears = rabbit ? '<path d="M137 142Q158 91 222 105Q243 119 218 136L153 163Z" fill="#fff7e8"/><path d="M169 136Q193 107 222 118L178 145Z" fill="#e9bdb6" stroke="none"/><path d="M163 146Q215 81 280 113Q299 130 271 143L181 174Z" fill="#fff7e8"/><path d="M195 144Q238 110 275 126L210 155Z" fill="#e9bdb6" stroke="none"/>' : cat ? '<path d="M84 145L88 101Q91 91 103 104L128 129M151 128L178 103Q189 95 191 108L194 153" fill="#e5a86e"/><path d="M96 130L98 111L113 128M165 131L181 114L182 140" fill="#e5b3a1" stroke="none"/>' : '<path d="M91 129Q59 119 59 151L64 195Q70 217 90 201L109 156Z" fill="#aa7147"/><path d="M179 132Q206 118 212 151L207 197Q194 214 178 197L170 159Z" fill="#aa7147"/>'
     const tail = rabbit ? '<circle cx="354" cy="172" r="26" fill="#fff8ee"/>' : cat ? '<path d="M322 167Q383 157 376 199Q369 228 264 219" fill="none" stroke="#a5744c" stroke-width="30"/><path d="M322 167Q383 157 376 199Q369 228 264 219" fill="none" stroke="#e5a86e" stroke-width="23"/><path d="M351 167L353 188M375 190L354 199M337 218L334 200" stroke="#bc7c4c" stroke-width="6"/>' : '<path d="M317 180Q382 157 382 183Q380 207 335 208" fill="#b7814e"/>'
-    return `<svg class="sleeping-pet-character" data-pose="prone" data-animal="${kind}" viewBox="0 0 420 260" role="img" aria-label="${escape(pet.name)}趴卧睡觉的${escape(pet.species)}形象"><ellipse cx="210" cy="233" rx="177" ry="15" fill="#574c5126"/><ellipse cx="210" cy="221" rx="180" ry="25" fill="${cat ? '#c6b3d4' : rabbit ? '#b5c7a1' : '#a8c4b7'}" stroke="${cat ? '#a18bab' : rabbit ? '#8da478' : '#799b8a'}" stroke-width="4"/><g stroke="#825e45" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><g class="sleeping-body">${tail}<ellipse cx="252" cy="169" rx="111" ry="56" fill="${fur}"/>${cat ? '<path d="M246 117L240 139M274 118L268 142M301 125L293 145" stroke="#bc7c4c" stroke-width="8"/>' : rabbit ? '<ellipse cx="287" cy="190" rx="45" ry="23" fill="#f0e3d4" stroke="none"/>' : '<path d="M268 123Q317 116 337 152Q337 169 316 165Q292 148 273 146Z" fill="#d8a771" stroke="none"/>'}<ellipse cx="302" cy="205" rx="43" ry="15" fill="${fur}"/></g>${ears}<ellipse cx="137" cy="164" rx="${rabbit ? 66 : 67}" ry="${rabbit ? 48 : 53}" fill="${fur}"/>${!rabbit ? '<ellipse cx="137" cy="183" rx="36" ry="24" fill="#fff2dd" stroke="none"/>' : ''}${cat ? '<path d="M125 116L128 131M140 113L140 132M154 117L151 132" stroke="#bd7d4c" stroke-width="6"/>' : ''}<ellipse cx="103" cy="210" rx="34" ry="14" fill="${rabbit ? fur : '#fff2dd'}"/><ellipse cx="165" cy="210" rx="34" ry="14" fill="${rabbit ? fur : '#fff2dd'}"/><path d="M92 211V216M104 211V216M154 211V216M166 211V216" stroke="#c3a789" stroke-width="2"/><g fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M103 157Q114 168 125 157M150 157Q161 168 172 157"/></g><ellipse cx="97" cy="177" rx="10" ry="5" fill="#e8aa98" opacity=".55" stroke="none"/><ellipse cx="178" cy="177" rx="10" ry="5" fill="#e8aa98" opacity=".55" stroke="none"/><path d="M130 177Q137 172 144 177Q146 184 137 187Q128 184 130 177Z" fill="${kind === 'dog' ? '#674936' : '#ce9290'}" stroke="none"/><path d="M131 192Q137 196 143 192" fill="none" stroke-width="2.5"/>${cat ? '<path d="M94 179L66 175M94 187L65 192M181 180L207 174M182 188L209 193" fill="none" stroke="#a67553" stroke-width="2"/>' : ''}</g></svg>`
+    return finishAnimal(`<svg class="sleeping-pet-character" data-pose="prone" data-animal="${kind}" viewBox="0 0 420 260" role="img" aria-label="${escape(pet.name)}趴卧睡觉的${escape(pet.species)}形象"><ellipse cx="210" cy="233" rx="177" ry="15" fill="#574c5126"/><ellipse cx="210" cy="221" rx="180" ry="25" fill="${cat ? '#c6b3d4' : rabbit ? '#b5c7a1' : '#a8c4b7'}" stroke="${cat ? '#a18bab' : rabbit ? '#8da478' : '#799b8a'}" stroke-width="4"/><g stroke="#825e45" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><g class="sleeping-body">${tail}<ellipse cx="252" cy="169" rx="111" ry="56" fill="${fur}"/>${cat ? '<path d="M246 117L240 139M274 118L268 142M301 125L293 145" stroke="#bc7c4c" stroke-width="8"/>' : rabbit ? '<ellipse cx="287" cy="190" rx="45" ry="23" fill="#f0e3d4" stroke="none"/>' : '<path d="M268 123Q317 116 337 152Q337 169 316 165Q292 148 273 146Z" fill="#d8a771" stroke="none"/>'}<ellipse cx="302" cy="205" rx="43" ry="15" fill="${fur}"/></g>${accessory(pet, kind, true)}${ears}<ellipse cx="137" cy="164" rx="${rabbit ? 66 : 67}" ry="${rabbit ? 48 : 53}" fill="${fur}"/>${markings(pet, kind, true)}${!rabbit ? '<ellipse cx="137" cy="183" rx="36" ry="24" fill="#fff2dd" stroke="none"/>' : ''}${cat ? '<path d="M125 116L128 131M140 113L140 132M154 117L151 132" stroke="#bd7d4c" stroke-width="6"/>' : ''}<ellipse cx="103" cy="210" rx="34" ry="14" fill="${rabbit ? fur : '#fff2dd'}"/><ellipse cx="165" cy="210" rx="34" ry="14" fill="${rabbit ? fur : '#fff2dd'}"/><path d="M92 211V216M104 211V216M154 211V216M166 211V216" stroke="#c3a789" stroke-width="2"/><g fill="none" stroke="#6d4e3a" stroke-width="4"><path d="M103 157Q114 168 125 157M150 157Q161 168 172 157"/></g><ellipse cx="97" cy="177" rx="10" ry="5" fill="#e8aa98" opacity=".55" stroke="none"/><ellipse cx="178" cy="177" rx="10" ry="5" fill="#e8aa98" opacity=".55" stroke="none"/><path d="M130 177Q137 172 144 177Q146 184 137 187Q128 184 130 177Z" fill="${kind === 'dog' ? '#674936' : '#ce9290'}" stroke="none"/><path d="M131 192Q137 196 143 192" fill="none" stroke-width="2.5"/>${cat ? '<path d="M94 179L66 175M94 187L65 192M181 180L207 174M182 188L209 193" fill="none" stroke="#a67553" stroke-width="2"/>' : ''}</g></svg>`, pet, kind)
   }
-  window.PetArtwork = Object.freeze({ themes, home, outdoor, sleeping, toy, snack })
+  window.PetArtwork = Object.freeze({ themes, home, outdoor, sleeping, toy, snack, profile, finishAnimal, markings, accessory, personalHome })
 })()
