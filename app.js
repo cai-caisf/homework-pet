@@ -1276,8 +1276,8 @@
     if (pet.happiness < 50) return showToast('开心度不足 50%，暂时不能喂食。\n先去公园或宠物乐园，让小伙伴开心起来吧', true)
     if (state.food < 1) return showToast('背包里没有饲料啦')
     state.food -= 1
-    pet.satiety = Math.min(100, pet.satiety + 32)
-    pet.happiness = Math.min(100, pet.happiness + 6)
+    pet.satiety = Math.min(100, pet.satiety + 10)
+    pet.happiness = Math.min(100, pet.happiness + 5)
     addLog(`给${pet.name}喂了一份饲料`)
     activePetId = id
     petAnimation = { petId: id, type: 'eating' }
