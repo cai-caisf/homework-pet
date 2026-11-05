@@ -348,3 +348,7 @@
 @media (min-width: 621px) {
   .room-artwork[data-home-layout] .personal-home-sign { transform: translateY(28px); }
 }
+
+/* Use the illustrated long-eared rabbit on its adoption card instead of a platform emoji. */
+.shop-rabbit-avatar { display: block; width: 84px; height: 96px; }
+.shop-rabbit-avatar .pet-body, .shop-rabbit-avatar .pet-tail, .shop-rabbit-avatar .pet-personal-accessory { display: none; }
