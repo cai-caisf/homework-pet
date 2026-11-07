@@ -253,7 +253,7 @@
   }
   function taskAvailability(task, now = new Date()) {
     const bounds = taskTimeBounds(task)
-    if (!bounds) return { allowed: true, status: 'open', button: `完成打卡 +${task.reward}`, message: '不限时间，完成后确认打卡即可领取积分' }
+    if (!bounds) return { allowed: true, status: 'open', button: `完成打卡 +${task.reward}`, message: '不限时间，确认完成并答对一道乘法题后领取积分' }
     const windowLabel = `${taskDateLabel(task.scheduledDate)} ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}`
     if (now.getTime() < bounds.start) return { allowed: false, status: 'upcoming', button: '未到时间', message: `尚未开始，仅限 ${windowLabel}` }
     if (now.getTime() >= bounds.end) return { allowed: false, status: 'expired', button: '已错过时间', message: `已错过打卡时间：${windowLabel}` }
@@ -1146,10 +1146,43 @@
     if (!task || task.completed) return
     const availability = taskAvailability(task)
     if (!availability.allowed) return showToast(availability.message, true)
-    dialogFlow = { stage: 'complete', taskId: id, taskSnapshot: taskSignature(task) }
-    dialogContent('这项作业完成了吗？', '检查一下有没有漏做的题目，再领取努力的小奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong><small>${taskDateLabel(task.scheduledDate)}${task.timeWindow ? ` · ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}` : ' · 不限时间'}</small>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><p class="dialog-note">确认后标记为已完成，同一项作业只能领取一次积分。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog" autofocus>再检查一下</button><button type="button" class="primary-button" data-action="confirm-task">确认完成，领取积分</button></div>`)
+    dialogFlow = { stage: 'complete', taskId: id, taskSnapshot: taskSignature(task), question: newTaskQuestion(), error: '' }
+    renderTaskReward(task)
     showActionDialog(opener)
-    actionDialog.querySelector('[data-action="close-action-dialog"][autofocus]').focus()
+    actionDialog.querySelector('#task-reward-answer').focus()
+  }
+  function newTaskQuestion(previous = null) {
+    const choices = []
+    for (let left = 1; left <= 9; left++) {
+      for (let right = 1; right <= 9; right++) {
+        if (previous && ((left === previous.left && right === previous.right) || (left === previous.right && right === previous.left))) continue
+        choices.push({ left, right, answer: left * right })
+      }
+    }
+    return choices[Math.floor(Math.random() * choices.length)]
+  }
+  function renderTaskReward(task) {
+    if (dialogFlow?.stage !== 'complete') return
+    const { question, error } = dialogFlow
+    dialogContent('这项作业完成了吗？', '检查作业，再答对一道 1～9 的乘法题，就能领取这份奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong><small>${taskDateLabel(task.scheduledDate)}${task.timeWindow ? ` · ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}` : ' · 不限时间'}</small>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><form id="task-reward-form"><label class="math-question" for="task-reward-answer">${question.left} × ${question.right} = ?</label><label><span class="field-label">你的答案</span><input id="task-reward-answer" class="text-input parent-answer" name="answer" type="text" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" placeholder="填写计算结果" autocomplete="off" aria-describedby="task-reward-error" required></label><p id="task-reward-error" class="dialog-error" role="alert">${escapeHtml(error)}</p><p class="dialog-note">答对后才标记为已完成并发放积分。答错会换一道新题，不扣积分；每项作业只可领取一次。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再检查一下</button><button type="submit" class="primary-button">答对并领取积分</button></div></form>`)
+  }
+  function verifyTaskAnswer(form) {
+    const flow = dialogFlow
+    if (flow?.stage !== 'complete' || !flow.question || savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
+    const task = taskForCompletion(flow.taskId, flow.taskSnapshot)
+    if (!task) { dialogFlow = null; actionDialog.close(); return }
+    const answer = String(new FormData(form).get('answer') || '').trim()
+    if (!/^[0-9]{1,2}$/.test(answer) || Number(answer) !== flow.question.answer) {
+      flow.question = newTaskQuestion(flow.question)
+      flow.error = '还没答对，已换一道新题，再试一次吧！'
+      renderTaskReward(task)
+      actionDialog.querySelector('#task-reward-answer').focus()
+      return
+    }
+    // Consume this question before saving so repeated submits cannot grant the reward twice.
+    dialogFlow = null
+    actionDialog.close()
+    completeTask(flow.taskId, flow.taskSnapshot)
   }
   function readParentGuard() {
     try {
@@ -1239,20 +1272,25 @@
     addLog(`大人奖励 +${points} 积分：${reason}`)
     commit(`收到大人的鼓励！+${points} 积分`)
   }
-  function completeTask(id, expectedSnapshot = null) {
-    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
+  function taskForCompletion(id, expectedSnapshot = null) {
     state = loadState()
     const task = state.tasks.find(item => item.id === id)
-    if (!task || task.completed) return
-    if (expectedSnapshot && taskSignature(task) !== expectedSnapshot) { render(); return showToast('作业内容已更新，请重新确认完成', true) }
+    if (!task || task.completed) { render(); showToast(task ? '这项作业已经领取过积分了' : '这项作业已被移除', true); return null }
+    if (expectedSnapshot && taskSignature(task) !== expectedSnapshot) { render(); showToast('作业内容已更新，请重新确认完成', true); return null }
     const availability = taskAvailability(task)
-    if (!availability.allowed) { refreshTaskAvailability(); return showToast(availability.message, true) }
+    if (!availability.allowed) { refreshTaskAvailability(); showToast(availability.message, true); return null }
+    return task
+  }
+  function completeTask(id, expectedSnapshot = null) {
+    if (savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
+    const task = taskForCompletion(id, expectedSnapshot)
+    if (!task) return
     if (!Number.isSafeInteger(state.points + task.reward)) return showToast('积分总数过大，暂时无法领取')
     task.completed = true
     task.completedAt = nowStamp()
     state.points += task.reward
     addLog(`完成「${task.title}」，获得 ${task.reward} 积分`)
-    commit(`真棒！获得 ${task.reward} 积分`)
+    return commit(`真棒！获得 ${task.reward} 积分`)
   }
   async function deleteTask(id) {
     if (savingTask || processingPhotos || loadingTaskEdit || backupBusy) return
@@ -1619,9 +1657,6 @@
     if (action === 'confirm-task-edit' && dialogFlow?.stage === 'replace-task-draft') { const id = dialogFlow.taskId; actionDialog.close(); await startTaskEdit(id) }
     if (action === 'parent-reward') openParentReward(button)
     if (action === 'close-action-dialog') actionDialog.close()
-    if (action === 'confirm-task') {
-      if (dialogFlow?.stage === 'complete') { const { taskId, taskSnapshot } = dialogFlow; actionDialog.close(); completeTask(taskId, taskSnapshot) }
-    }
     if (action === 'confirm-bonus') grantBonus()
     if (action === 'edit-bonus' && dialogFlow?.stage === 'bonus-confirm') { dialogFlow.stage = 'bonus'; renderBonusForm() }
     if (action === 'delete-task') deleteTask(button.dataset.id)
@@ -1663,9 +1698,10 @@
   })
   document.addEventListener('submit', event => {
     const form = event.target
-    if (!['task-form', 'parent-gate-form', 'bonus-form', 'backup-text-form'].includes(form.id)) return
+    if (!['task-form', 'task-reward-form', 'parent-gate-form', 'bonus-form', 'backup-text-form'].includes(form.id)) return
     event.preventDefault()
     if (form.id === 'task-form') addTask(form)
+    if (form.id === 'task-reward-form') verifyTaskAnswer(form)
     if (form.id === 'parent-gate-form') verifyParentAnswer(form)
     if (form.id === 'bonus-form') reviewBonus(form)
     if (form.id === 'backup-text-form') {
