@@ -16,7 +16,7 @@
   const SUPPLY_PRICE = 50
   const TOY_HAPPINESS = 20
   const SNACK_SATIETY = 25
-  const MIN_INTERACTION_HEALTH = 80
+  const MIN_INTERACTION_HEALTH = 50
   const BASE_DECAY_RATES = { satiety: 6, happiness: 4, health: 2 }
   const DECAY_RATE_LIMITS = { satiety: [5, 7], happiness: [3, 5], health: [1, 3] }
   const MEDICINES = {
@@ -1153,8 +1153,8 @@
   }
   function newTaskQuestion(previous = null) {
     const choices = []
-    for (let left = 1; left <= 9; left++) {
-      for (let right = 1; right <= 9; right++) {
+    for (let left = 2; left <= 9; left++) {
+      for (let right = 2; right <= 9; right++) {
         if (previous && ((left === previous.left && right === previous.right) || (left === previous.right && right === previous.left))) continue
         choices.push({ left, right, answer: left * right })
       }
@@ -1164,7 +1164,7 @@
   function renderTaskReward(task) {
     if (dialogFlow?.stage !== 'complete') return
     const { question, error } = dialogFlow
-    dialogContent('这项作业完成了吗？', '检查作业，再答对一道 1～9 的乘法题，就能领取这份奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong><small>${taskDateLabel(task.scheduledDate)}${task.timeWindow ? ` · ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}` : ' · 不限时间'}</small>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><form id="task-reward-form"><label class="math-question" for="task-reward-answer">${question.left} × ${question.right} = ?</label><label><span class="field-label">你的答案</span><input id="task-reward-answer" class="text-input parent-answer" name="answer" type="text" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" placeholder="填写计算结果" autocomplete="off" aria-describedby="task-reward-error" required></label><p id="task-reward-error" class="dialog-error" role="alert">${escapeHtml(error)}</p><p class="dialog-note">答对后才标记为已完成并发放积分。答错会换一道新题，不扣积分；每项作业只可领取一次。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再检查一下</button><button type="submit" class="primary-button">答对并领取积分</button></div></form>`)
+    dialogContent('这项作业完成了吗？', '检查作业，再答对一道 2～9 的乘法题，就能领取这份奖励。', `<div class="confirmation-card"><strong>${escapeHtml(task.title)}</strong><small>${taskDateLabel(task.scheduledDate)}${task.timeWindow ? ` · ${task.timeWindow.start}–${task.timeWindow.end < task.timeWindow.start ? '次日 ' : ''}${task.timeWindow.end}` : ' · 不限时间'}</small>${task.subject ? `<small>${escapeHtml(task.subject)}</small>` : ''}<span class="confirmation-points">✦ +${task.reward} 积分</span></div><form id="task-reward-form"><label class="math-question" for="task-reward-answer">${question.left} × ${question.right} = ?</label><label><span class="field-label">你的答案</span><input id="task-reward-answer" class="text-input parent-answer" name="answer" type="text" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" placeholder="填写计算结果" autocomplete="off" aria-describedby="task-reward-error" required></label><p id="task-reward-error" class="dialog-error" role="alert">${escapeHtml(error)}</p><p class="dialog-note">答对后才标记为已完成并发放积分。答错会换一道新题，不扣积分；每项作业只可领取一次。</p><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再检查一下</button><button type="submit" class="primary-button">答对并领取积分</button></div></form>`)
   }
   function verifyTaskAnswer(form) {
     const flow = dialogFlow
