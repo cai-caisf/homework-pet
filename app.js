@@ -707,7 +707,7 @@
   function renderPetAvatar(pet) {
     const image = renderAnimatedAnimal(pet)
     // Rabbit ears are part of its silhouette. Frame the whole head instead of cropping the body thumbnail.
-    const frames = { rabbit: '65 -4 210 242', panda: '45 20 250 225', penguin: '48 10 245 238', turtle: '8 80 325 240' }
+    const frames = { rabbit: '65 -4 210 242', panda: '0 0 340 340', penguin: '0 0 340 340', turtle: '0 0 340 340' }
     return frames[petKind(pet)] ? image.replace('viewBox="0 0 340 340"', `viewBox="${frames[petKind(pet)]}"`) : image
   }
 
