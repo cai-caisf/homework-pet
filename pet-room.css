@@ -352,3 +352,63 @@
 /* Use the illustrated long-eared rabbit on its adoption card instead of a platform emoji. */
 .shop-rabbit-avatar { display: block; width: 84px; height: 96px; }
 .shop-rabbit-avatar .pet-body, .shop-rabbit-avatar .pet-tail, .shop-rabbit-avatar .pet-personal-accessory { display: none; }
+
+/* Three surprise companions, each with its own way of moving. */
+.individual-pet-avatar :is(.pet-character-panda, .pet-character-penguin, .pet-character-turtle) { transform: none; }
+.product-art.panda { background: #edf2df; }.product-art.penguin { background: #e5f0f6; }.product-art.turtle { background: #edf0db; }
+.pet-character-turtle .pet-head { transform-origin: 105px 228px; }
+.pet-character-turtle .pet-tail { animation: pet-tail-puff 4s ease-in-out infinite; }
+.is-eating[data-pet-kind="turtle"] .pet-head, .is-snacking[data-pet-kind="turtle"] .pet-head { animation: turtle-munch-head 3.4s ease-in-out both; }
+.is-toy[data-pet-kind="panda"] .pet-figure { animation: panda-roll 2.2s ease-in-out infinite; }
+.is-toy[data-pet-kind="panda"] .pet-toy-prop { animation: toy-yarn-roll 2.2s ease-in-out infinite; }
+.is-toy[data-pet-kind="penguin"] .pet-figure, .scene-playground[data-pet-kind="penguin"] .pet-figure { animation: penguin-slide 2.8s ease-in-out infinite; }
+:is(.is-toy, .scene-playground)[data-pet-kind="penguin"] .pet-flipper { transform-box: fill-box; transform-origin: center top; animation: penguin-flap .6s ease-in-out infinite alternate; }
+.is-toy[data-pet-kind="penguin"] .pet-toy-prop { left: calc(50% - 48px); bottom: 48px; width: 96px; height: 60px; animation: penguin-board 2.8s ease-in-out infinite; }
+.scene-park[data-pet-kind="penguin"] .pet-figure { animation: penguin-waddle 3.3s ease-in-out infinite; }
+.scene-park[data-pet-kind="turtle"] .pet-figure { animation-duration: 8s; }
+.scene-playground[data-pet-kind="turtle"] .pet-figure, .is-toy[data-pet-kind="turtle"] .pet-figure { animation: turtle-crawl 4s ease-in-out infinite; }
+.is-toy[data-pet-kind="turtle"] .pet-toy-prop { animation: toy-yarn-roll 4s ease-in-out infinite; }
+.scene-playground[data-pet-kind="panda"] .pet-figure { animation: panda-roll 2.2s ease-in-out infinite; }
+.pet-supplies .section-title { flex-wrap: wrap; gap: 7px; }
+@keyframes panda-roll { 0%, 100% { transform: translateX(-14px) rotate(-10deg); } 50% { transform: translateX(18px) rotate(12deg) scale(1.02, .98); } }
+@keyframes penguin-slide { 0%, 100% { transform: translateX(-25px) rotate(-8deg); } 50% { transform: translateX(28px) rotate(8deg); } }
+@keyframes penguin-board { 0%, 100% { transform: translateX(-25px) rotate(-5deg); } 50% { transform: translateX(28px) rotate(5deg); } }
+@keyframes penguin-flap { from { transform: rotate(-9deg); } to { transform: rotate(14deg); } }
+@keyframes penguin-waddle { 0%, 100% { transform: translateX(-20px) rotate(-5deg); } 50% { transform: translateX(20px) rotate(5deg); } }
+@keyframes turtle-crawl { 0%, 100% { transform: translate(-19px, 0); } 50% { transform: translate(21px, -3px); } }
+@keyframes turtle-munch-head { 0%, 100% { transform: translate(0, 0); } 18%, 86% { transform: translate(52px, 41px) rotate(4deg); } 40%, 64% { transform: translate(53px, 46px) rotate(5deg); } }
+
+/* A points-only adoption surprise, with an explicit confirmation and a saved result. */
+.blind-shop { display: grid; grid-template-columns: 180px minmax(0, 1fr); align-items: center; gap: 28px; margin-bottom: 27px; padding: 27px; background: linear-gradient(120deg, #f9eedc, #f5f7e9 62%, #edf2ef); border-color: #e8d7b8; }
+.blind-shop-art { display: grid; justify-items: center; gap: 24px; }
+.blind-price-tag { border: 1px solid #dac69f; border-radius: 99px; padding: 8px 12px; background: #fffbeb; color: #987239; font-size: 11px; font-weight: 800; }
+.blind-shop-copy { min-width: 0; }.blind-shop-copy h2 { margin: 0 0 9px; color: #5b6d50; font-size: 22px; }.blind-shop-copy > p { color: #8b927c; font-size: 12px; line-height: 1.8; }
+.blind-candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 15px 0; }
+.blind-candidate { display: grid; justify-items: center; gap: 7px; min-width: 0; }
+.blind-candidate > span { display: block; width: 58px; height: 58px; border: 1px solid #e3dec9; border-radius: 17px; background: #f6f5e6; }
+.blind-candidate:nth-child(2) > span { background: #e8f1f6; }.blind-candidate:nth-child(3) > span { background: #e9f0df; }
+.blind-candidate strong { color: #77826b; font-size: 11px; }
+.blind-rule { margin: 10px 0 16px; }.blind-shop-copy .blind-rule { font-size: 10px; }
+.blind-gift { position: relative; width: 105px; height: 96px; margin-top: 16px; border: 3px solid #af946c; border-radius: 9px 9px 19px 19px; background: #e5c59b; box-shadow: 0 9px 0 #b7986d16, inset 0 -8px #d4b18155; }
+.blind-gift > span { position: absolute; z-index: 3; inset: 17px 0 0; color: #fff9e6; text-align: center; font-size: 42px; font-weight: 800; text-shadow: 0 2px #b28f5f; }
+.blind-gift-lid { position: absolute; z-index: 4; top: -18px; left: -9px; width: 117px; height: 28px; border: 3px solid #af946c; border-radius: 9px; background: #e9cfa9; transform-origin: 10% 100%; }
+.blind-gift-ribbon { position: absolute; z-index: 2; top: -18px; bottom: 0; left: 38px; width: 24px; border-left: 2px solid #b98c71; border-right: 2px solid #b98c71; background: #d9a78f; }
+.blind-gift-ribbon::before, .blind-gift-ribbon::after { position: absolute; top: -24px; width: 27px; height: 22px; border: 3px solid #b98c71; background: #e6b39d; content: ''; }
+.blind-gift-ribbon::before { left: -23px; border-radius: 18px 18px 3px 18px; transform: rotate(13deg); }.blind-gift-ribbon::after { left: 12px; border-radius: 18px 18px 18px 3px; transform: rotate(-13deg); }
+.blind-gift b { position: absolute; top: -20px; left: -29px; color: #c49e5d; font-size: 23px; font-weight: 400; animation: blind-twinkle 2.3s ease-in-out infinite; }.blind-gift b:last-child { top: 22px; left: auto; right: -28px; font-size: 19px; animation-delay: .8s; }
+.blind-confirm-art { display: grid; place-items: center; min-height: 140px; margin-bottom: 12px; }
+.blind-confirm-art .blind-gift { transform: scale(.9); }
+.blind-reveal { position: relative; height: 230px; margin-bottom: 18px; overflow: hidden; border-radius: 20px; background: radial-gradient(ellipse at 50% 35%, #fffbea, #edf3e1); }
+.blind-reveal .blind-gift { position: absolute; z-index: 1; left: calc(50% - 52px); bottom: 0; transform: scale(.8); opacity: .4; }
+.blind-reveal .blind-gift-lid { animation: blind-lid-open .7s ease-out both; }.blind-reveal-pet { position: absolute; z-index: 2; bottom: 5px; left: calc(50% - 114px); width: 228px; height: 228px; animation: blind-pet-appear .9s ease-out both; }
+.blind-confetti { position: absolute; z-index: 3; top: 20px; left: 0; right: 0; color: #c4ac6c; font-size: 25px; letter-spacing: 24px; text-align: center; animation: blind-confetti 1s ease-out both; }
+@keyframes blind-twinkle { 0%, 100% { opacity: .4; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes blind-lid-open { from { transform: rotate(0); } to { transform: translate(-18px, -36px) rotate(-34deg); } }
+@keyframes blind-pet-appear { 0% { opacity: 0; transform: translateY(58px) scale(.5); } 35% { opacity: 0; transform: translateY(35px) scale(.65); } 75% { opacity: 1; transform: translateY(-8px) scale(1.04); } 100% { opacity: 1; transform: none; } }
+@keyframes blind-confetti { from { opacity: 0; transform: translateY(30px) scale(.5); } to { opacity: 1; transform: none; } }
+@media (max-width: 620px) {
+  .blind-shop { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 22px 18px; }.blind-shop-art { display: flex; align-items: center; justify-content: center; gap: 26px; padding-top: 12px; }.blind-shop-art .blind-gift { flex: 0 0 105px; transform: scale(.83); }.blind-price-tag { padding: 8px; font-size: 10px; }.blind-shop-copy h2 { font-size: 20px; }.blind-shop-copy > .primary-button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blind-gift *, .blind-reveal-pet, .blind-confetti { animation: none !important; }
+}
