@@ -356,7 +356,8 @@
 /* Three surprise companions, each with its own way of moving. */
 .individual-pet-avatar :is(.pet-character-panda, .pet-character-penguin, .pet-character-turtle) { transform: none; }
 .product-art.panda { background: #edf2df; }.product-art.penguin { background: #e5f0f6; }.product-art.turtle { background: #edf0db; }
-.pet-character-turtle .pet-head { transform-origin: 105px 228px; }
+.pet-character-turtle .pet-head { transform-origin: 92px 195px; }
+.pet-room-scene:is(.is-toy, .scene-park, .scene-playground) .panda-bamboo { opacity: 0; }
 .pet-character-turtle .pet-tail { animation: pet-tail-puff 4s ease-in-out infinite; }
 .is-eating[data-pet-kind="turtle"] .pet-head, .is-snacking[data-pet-kind="turtle"] .pet-head { animation: turtle-munch-head 3.4s ease-in-out both; }
 .is-toy[data-pet-kind="panda"] .pet-figure { animation: panda-roll 2.2s ease-in-out infinite; }
