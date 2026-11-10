@@ -413,3 +413,15 @@
 @media (prefers-reduced-motion: reduce) {
   .blind-gift *, .blind-reveal-pet, .blind-confetti { animation: none !important; }
 }
+
+/* Reference cutouts: move the intact animal, never isolated limb/head fragments. */
+.reference-pet-character .reference-eat-closed,
+.reference-pet-character .reference-eat-open { opacity: 0; }
+.pet-room-scene:is(.is-eating, .is-snacking) .reference-idle { opacity: 0; }
+.pet-room-scene:is(.is-eating, .is-snacking) .reference-eat-closed { opacity: 1; }
+.pet-room-scene:is(.is-eating, .is-snacking) .reference-eat-open { animation: reference-pet-chew .52s steps(1, end) infinite; }
+.reference-adornment { pointer-events: none; }
+@keyframes reference-pet-chew { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .pet-room-scene:is(.is-eating, .is-snacking) .reference-eat-open { animation: none !important; opacity: 0; }
+}
