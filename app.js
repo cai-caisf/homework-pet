@@ -1048,7 +1048,9 @@
 
   function renderSupplyShop(item) {
     const toy = item === 'toy'
-    return `<section class="story-section"><div class="section-title"><h2>${toy ? '专属玩具' : '专属零食'}</h2><span class="section-note">${toy ? '购买一次，可反复玩 · 开心度 +20' : '每次消耗 1 份 · 饱饱度 +25'}</span></div><div class="catalog-grid supply-catalog">${CATALOG.map(animal => {
+    const unlockedKinds = new Set(state.pets.map(petKind))
+    const animals = CATALOG.filter(animal => !animal.blindOnly || unlockedKinds.has(animal.id))
+    return `<section class="story-section"><div class="section-title"><h2>${toy ? '专属玩具' : '专属零食'}</h2><span class="section-note">${toy ? '购买一次，可反复玩 · 开心度 +20' : '每次消耗 1 份 · 饱饱度 +25'}</span></div><div class="catalog-grid supply-catalog">${animals.map(animal => {
       const bag = state.supplies[animal.id], name = PET_SUPPLIES[animal.id][item]
       return `<article class="panel product-card supply-product" data-supply-product="${animal.id}-${item}"><div class="product-art ${animal.id}" aria-hidden="true">${toy ? window.PetArtwork.toy(animal.id) : window.PetArtwork.snack(animal.id)}</div><h3 class="product-name">${name}</h3><p class="product-intro">${animal.emoji} ${animal.species}专用 · ${toy ? '开心度 +20' : '饱饱度 +25'}</p><span class="supply-stock">${toy ? bag.toy ? '已拥有 · 同类伙伴共用' : '买一次，可反复使用' : `背包里还有 ${bag.snacks} 份`}</span><div class="product-bottom"><span class="product-price">✦ ${supplyPrice(animal.id, item)} 积分</span><button class="primary-button button-small" data-action="buy-supply" data-kind="${animal.id}" data-item="${item}" ${toy && bag.toy ? 'disabled' : ''}>${toy && bag.toy ? '已拥有' : '购买'}</button></div></article>`
     }).join('')}</div></section>`
@@ -1056,12 +1058,9 @@
   function blindBoxArt() {
     return '<div class="blind-gift" aria-hidden="true"><i class="blind-gift-lid"></i><span>?</span><i class="blind-gift-ribbon"></i><b>✦</b><b>✧</b></div>'
   }
-  function renderBlindCandidates() {
-    return BLIND_PETS.map(product => `<div class="blind-candidate"><span class="individual-pet-avatar" aria-hidden="true">${renderPetAvatar({ ...product, individuality: { version: 1, number: 1 } })}</span><strong>${product.name}</strong></div>`).join('')
-  }
   function renderBlindBoxShop() {
     const sleeping = isPetSleeping()
-    return `<section class="blind-shop panel" aria-label="动物盲盒领养"><div class="blind-shop-art">${blindBoxArt()}<span class="blind-price-tag">✦ ${BLIND_BOX_PRICE} 积分 / 只</span></div><div class="blind-shop-copy"><span class="house-eyebrow">A LITTLE SURPRISE</span><h2>打开一份神秘的陪伴</h2><p>熊猫、小企鹅、小乌龟，哪位伙伴会来你的小家？</p><div class="blind-candidates">${renderBlindCandidates()}</div><p class="blind-rule">每次随机领养 1 只，三种等概率（各 1/3）。可能遇到同种伙伴，每只都有自己的小名、形象和小家。</p><button type="button" class="primary-button" data-action="open-blind-box" ${sleeping ? 'disabled' : ''}>${sleeping ? '06:00 后开启' : `开启动物盲盒 · ${BLIND_BOX_PRICE} 积分`}</button></div></section>`
+    return `<section class="blind-shop panel" aria-label="动物盲盒领养"><div class="blind-shop-art">${blindBoxArt()}<span class="blind-price-tag">✦ ${BLIND_BOX_PRICE} 积分 / 只</span></div><div class="blind-shop-copy"><span class="house-eyebrow">A LITTLE SURPRISE</span><h2>打开一份神秘的陪伴</h2><p>一位神秘的小伙伴正在等你，打开盲盒才知道是谁。</p><p class="blind-rule">每次随机领养 1 只伙伴，可能遇到同种伙伴。每只都有自己的小名、形象和小家。</p><button type="button" class="primary-button" data-action="open-blind-box" ${sleeping ? 'disabled' : ''}>${sleeping ? '06:00 后开启' : `开启动物盲盒 · ${BLIND_BOX_PRICE} 积分`}</button></div></section>`
   }
 
   function renderShop() {
@@ -1346,7 +1345,7 @@
     if (!allowPetInteraction()) return
     if (state.points < BLIND_BOX_PRICE) return showInsufficientPoints(BLIND_BOX_PRICE)
     dialogFlow = { stage: 'blind-box-confirm' }
-    dialogContent('领养一位神秘伙伴？', '确认后使用积分开启盲盒，随机迎接一位新伙伴。', `<div class="blind-confirm-art">${blindBoxArt()}</div><div class="blind-candidates">${renderBlindCandidates()}</div><div class="confirmation-card"><strong>本次花费 ${BLIND_BOX_PRICE} 积分</strong><small>熊猫、小企鹅、小乌龟各有 1/3 的机会，可能开出同种动物。每次获得 1 只，新伙伴会立即保存在本机记录中。</small></div><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再想一下</button><button type="button" class="primary-button" data-action="confirm-blind-box">确认花费 ${BLIND_BOX_PRICE} 积分</button></div>`)
+    dialogContent('领养一位神秘伙伴？', '确认后使用积分开启盲盒，随机迎接一位新伙伴。', `<div class="blind-confirm-art">${blindBoxArt()}</div><div class="confirmation-card"><strong>本次花费 ${BLIND_BOX_PRICE} 积分</strong><small>打开后才会揭晓神秘伙伴，每次获得 1 只，也可能遇到同种伙伴。新伙伴会立即保存在本机记录中。</small></div><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再想一下</button><button type="button" class="primary-button" data-action="confirm-blind-box">确认花费 ${BLIND_BOX_PRICE} 积分</button></div>`)
     showActionDialog(opener)
   }
   function confirmBlindBox() {
