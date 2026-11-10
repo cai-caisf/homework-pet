@@ -5,15 +5,22 @@
   const CATALOG = [
     { id: 'dog', species: '狗狗', name: '小狗', nameBase: '团团', emoji: '🐶', intro: '活泼热情，最爱陪你散步', price: 80, art: 'dog' },
     { id: 'cat', species: '猫咪', name: '小猫', nameBase: '咪咪', emoji: '🐱', intro: '软软糯糯，喜欢晒太阳', price: 80, art: 'cat' },
-    { id: 'rabbit', species: '兔兔', name: '小兔', nameBase: '跳跳', emoji: '🐰', intro: '蹦蹦跳跳，喜欢胡萝卜', price: 60, art: 'rabbit' }
+    { id: 'rabbit', species: '兔兔', name: '小兔', nameBase: '跳跳', emoji: '🐰', intro: '蹦蹦跳跳，喜欢胡萝卜', price: 60, art: 'rabbit' },
+    { id: 'panda', species: '熊猫', name: '熊猫', nameBase: '竹竹', emoji: '🐼', intro: '软乎乎的小团子，最爱抱竹球', price: 100, art: 'panda', blindOnly: true },
+    { id: 'penguin', species: '企鹅', name: '小企鹅', nameBase: '冰冰', emoji: '🐧', intro: '摇摇摆摆，喜欢在冰面滑行', price: 100, art: 'penguin', blindOnly: true },
+    { id: 'turtle', species: '乌龟', name: '小乌龟', nameBase: '慢慢', emoji: '🐢', intro: '慢慢爬呀爬，喜欢池塘和阳光', price: 100, art: 'turtle', blindOnly: true }
   ]
   const PET_NAMES = {
     dog: ['团团', '豆豆', '布丁', '麦麦', '可乐', '奶盖', '旺仔', '栗子', '点点', '汤圆', '曲奇', '花卷'],
     cat: ['咪咪', '糯米', '桃桃', '芝麻', '橘子', '奶糖', '泡芙', '月牙', '铃铛', '棉花', '芋圆', '星星'],
-    rabbit: ['跳跳', '雪球', '糯糯', '萝萝', '棉棉', '桃酥', '云朵', '米粒', '小葵', '软糖', '芽芽', '雪糕']
+    rabbit: ['跳跳', '雪球', '糯糯', '萝萝', '棉棉', '桃酥', '云朵', '米粒', '小葵', '软糖', '芽芽', '雪糕'],
+    panda: ['竹竹', '圆宝', '笋笋', '绵绵', '团子', '墨墨', '福宝', '芝芝', '糍粑', '奶团', '竹叶', '暖宝'],
+    penguin: ['冰冰', '啾啾', '雪团', '波波', '蓝蓝', '小浪', '极光', '冰糖', '泡泡', '雪豆', '小霜', '啵啵'],
+    turtle: ['慢慢', '石头', '青豆', '苔苔', '小池', '翡翠', '荷荷', '豆芽', '绿宝', '小溪', '年年', '安安']
   }
   const FOOD_PRICE = 20
   const SUPPLY_PRICE = 50
+  const BLIND_BOX_PRICE = 100
   const TOY_HAPPINESS = 20
   const SNACK_SATIETY = 25
   const MIN_INTERACTION_HEALTH = 50
@@ -26,8 +33,13 @@
   const PET_SUPPLIES = {
     dog: { toy: '骨头响响玩具', snack: '骨头饼干', play: '抱住小骨头，摇摇尾巴真开心～', eat: '咔嚓咔嚓，骨头饼干真香～' },
     cat: { toy: '毛线球', snack: '小鱼饼干', play: '扑一扑，毛线球别跑呀～', eat: '喵呜，小鱼饼干真好吃～' },
-    rabbit: { toy: '萝卜滚滚球', snack: '鲜嫩菜叶', play: '蹦蹦跳跳，推一推萝卜球～', eat: '嚼一嚼，菜叶脆脆甜甜～' }
+    rabbit: { toy: '萝卜滚滚球', snack: '鲜嫩菜叶', play: '蹦蹦跳跳，推一推萝卜球～', eat: '嚼一嚼，菜叶脆脆甜甜～' },
+    panda: { toy: '竹球', snack: '脆嫩竹笋', toyPrice: 60, snackPrice: 40, play: '抱住竹球，滚一滚真开心～', eat: '咔嚓咔嚓，竹笋香香脆脆～', outing: '抱着竹球打个滚，再慢慢爬起来～' },
+    penguin: { toy: '小小滑冰板', snack: '鲜香小鱼', toyPrice: 80, snackPrice: 50, play: '踩上滑冰板，嗖地滑过去～', eat: '啊呜，小鱼真好吃～', outing: '拍拍小翅膀，滑一滑冰道～' },
+    turtle: { toy: '彩石滚滚球', snack: '清甜菜叶', toyPrice: 40, snackPrice: 30, play: '推推彩石球，慢慢追上它～', eat: '嚼一嚼，菜叶清清甜甜～', outing: '沿着彩石小路，慢慢向前爬～' }
   }
+  const BLIND_PETS = CATALOG.filter(item => item.blindOnly)
+  const supplyPrice = (kind, item) => PET_SUPPLIES[kind]?.[`${item}Price`] ?? SUPPLY_PRICE
   const TRIP_DURATION = 12000
   const OUTINGS = {
     park: { cost: 10, name: '公园散步', place: '公园', icon: '🌳', happiness: 18 },
@@ -695,7 +707,8 @@
   function renderPetAvatar(pet) {
     const image = renderAnimatedAnimal(pet)
     // Rabbit ears are part of its silhouette. Frame the whole head instead of cropping the body thumbnail.
-    return petKind(pet) === 'rabbit' ? image.replace('viewBox="0 0 340 340"', 'viewBox="65 -4 210 242"') : image
+    const frames = { rabbit: '65 -4 210 242', panda: '64 25 212 222', penguin: '68 42 204 225', turtle: '35 125 270 200' }
+    return frames[petKind(pet)] ? image.replace('viewBox="0 0 340 340"', `viewBox="${frames[petKind(pet)]}"`) : image
   }
 
   function renderHome() {
@@ -834,6 +847,9 @@
   }
 
   function petKind(pet) {
+    if (pet.species.includes('熊猫')) return 'panda'
+    if (pet.species.includes('企鹅')) return 'penguin'
+    if (pet.species.includes('龟')) return 'turtle'
     if (pet.species.includes('猫')) return 'cat'
     if (pet.species.includes('兔')) return 'rabbit'
     return 'dog'
@@ -904,6 +920,7 @@
   function renderAnimatedAnimal(pet, sleeping = false) {
     const kind = petKind(pet)
     if (sleeping) return window.PetArtwork.sleeping(pet, kind)
+    if (['panda', 'penguin', 'turtle'].includes(kind)) return window.PetArtwork.wildAnimal(pet, kind)
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
     const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
     const tail = kind === 'rabbit'
@@ -947,9 +964,9 @@
     const kind = petKind(pet), items = PET_SUPPLIES[kind], bag = state.supplies[kind]
     const sleeping = isPetSleeping(), mode = petAnimation?.petId === pet.id ? petAnimation.type : ''
     const needsHealth = pet.health < MIN_INTERACTION_HEALTH
-    return `<section class="pet-supplies" aria-label="${escapeHtml(pet.name)}的玩具和零食"><div class="section-title"><h2>专属玩具与零食</h2><span class="section-note">${escapeHtml(pet.species)}专用 · 每件 50 积分</span></div><div class="pet-supply-grid">
-      <div class="pet-supply-row"><div class="supply-icon" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="supply-copy"><strong>${items.toy}</strong><small>开心度 +${TOY_HAPPINESS} · 可反复玩</small><em>${bag.toy ? '已放入背包，同类伙伴共用' : '购买一次，解锁陪玩'}</em></div>${bag.toy ? `<button class="secondary-button button-small" data-action="use-supply" data-item="toy" data-id="${escapeHtml(pet.id)}" ${busy || needsHealth ? 'disabled' : ''}>${sleeping ? '睡觉中' : needsHealth ? '先恢复健康' : mode === 'toy' ? '玩耍中…' : '使用玩具'}</button>` : `<button class="primary-button button-small" data-action="buy-supply" data-kind="${kind}" data-item="toy">购买 · 50分</button>`}</div>
-      <div class="pet-supply-row"><div class="supply-icon snack-icon" aria-hidden="true">${window.PetArtwork.snack(kind)}</div><div class="supply-copy"><strong>${items.snack}</strong><small>饱饱度 +${SNACK_SATIETY} · 每次 1 份</small><em>背包里还有 ${bag.snacks} 份</em></div><div class="supply-actions"><button class="secondary-button button-small" data-action="use-supply" data-item="snack" data-id="${escapeHtml(pet.id)}" ${busy || needsHealth || lowMood || bag.snacks < 1 || pet.satiety >= 100 ? 'disabled' : ''}>${sleeping ? '睡觉中' : mode === 'snacking' ? '吃零食中…' : needsHealth ? '先恢复健康' : lowMood ? '先哄开心' : pet.satiety >= 100 ? '已经吃饱' : '喂零食'}</button><button class="quiet-button" data-action="buy-supply" data-kind="${kind}" data-item="snack">${bag.snacks ? '再买一份' : '购买一份'} · 50分</button></div></div>
+    return `<section class="pet-supplies" aria-label="${escapeHtml(pet.name)}的玩具和零食"><div class="section-title"><h2>专属玩具与零食</h2><span class="section-note">${escapeHtml(pet.species)}专用 · 玩具 ${supplyPrice(kind, 'toy')} 分 / 零食 ${supplyPrice(kind, 'snack')} 分</span></div><div class="pet-supply-grid">
+      <div class="pet-supply-row"><div class="supply-icon" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="supply-copy"><strong>${items.toy}</strong><small>开心度 +${TOY_HAPPINESS} · 可反复玩</small><em>${bag.toy ? '已放入背包，同类伙伴共用' : '购买一次，解锁陪玩'}</em></div>${bag.toy ? `<button class="secondary-button button-small" data-action="use-supply" data-item="toy" data-id="${escapeHtml(pet.id)}" ${busy || needsHealth ? 'disabled' : ''}>${sleeping ? '睡觉中' : needsHealth ? '先恢复健康' : mode === 'toy' ? '玩耍中…' : '使用玩具'}</button>` : `<button class="primary-button button-small" data-action="buy-supply" data-kind="${kind}" data-item="toy">购买 · ${supplyPrice(kind, 'toy')}分</button>`}</div>
+      <div class="pet-supply-row"><div class="supply-icon snack-icon" aria-hidden="true">${window.PetArtwork.snack(kind)}</div><div class="supply-copy"><strong>${items.snack}</strong><small>饱饱度 +${SNACK_SATIETY} · 每次 1 份</small><em>背包里还有 ${bag.snacks} 份</em></div><div class="supply-actions"><button class="secondary-button button-small" data-action="use-supply" data-item="snack" data-id="${escapeHtml(pet.id)}" ${busy || needsHealth || lowMood || bag.snacks < 1 || pet.satiety >= 100 ? 'disabled' : ''}>${sleeping ? '睡觉中' : mode === 'snacking' ? '吃零食中…' : needsHealth ? '先恢复健康' : lowMood ? '先哄开心' : pet.satiety >= 100 ? '已经吃饱' : '喂零食'}</button><button class="quiet-button" data-action="buy-supply" data-kind="${kind}" data-item="snack">${bag.snacks ? '再买一份' : '购买一份'} · ${supplyPrice(kind, 'snack')}分</button></div></div>
       </div><p class="supply-note">玩具和零食只给对应动物使用；数值最高 100%。睡觉时可以购买，醒来后再一起玩。</p></section>`
   }
   function renderMedicines(pet = null, busy = false) {
@@ -973,7 +990,7 @@
     const theme = window.PetArtwork.themes[kind]
     const personal = window.PetArtwork.profile(pet, kind)
     const items = PET_SUPPLIES[kind]
-    const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'healing' ? (petAnimation.medicine === 'capsule' ? '啊呜，慢慢恢复元气啦～' : '小小勇敢，恢复健康啦～') : mode === 'toy' ? items.play : mode === 'snacking' ? items.eat : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? (kind === 'cat' ? '扑一扑毛线球，玩得真开心～' : kind === 'rabbit' ? '蹦蹦跳跳，玩一玩小萝卜球～' : '追到小球啦，再跳一跳！') : needsHealth ? '想先恢复健康，再一起玩～' : lowMood ? '想先玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
+    const speech = sleeping ? '呼噜噜……明早再一起玩～' : mode === 'healing' ? (petAnimation.medicine === 'capsule' ? '啊呜，慢慢恢复元气啦～' : '小小勇敢，恢复健康啦～') : mode === 'toy' ? items.play : mode === 'snacking' ? items.eat : mode === 'eating' ? '啊呜啊呜，真香～' : scene === 'park' ? '闻闻花香，追一追小蝴蝶～' : scene === 'playground' ? (items.outing || (kind === 'cat' ? '扑一扑毛线球，玩得真开心～' : kind === 'rabbit' ? '蹦蹦跳跳，玩一玩小萝卜球～' : '追到小球啦，再跳一跳！')) : needsHealth ? '想先恢复健康，再一起玩～' : lowMood ? '想先玩一玩，再吃饭～' : pet.satiety < 40 ? '肚子咕咕叫，想吃点好吃的～' : pet.happiness >= 80 ? '见到你就好开心呀！' : '今天也想和你一起玩～'
     const location = trip ? `${trip.icon} ${pet.name}在${theme[scene]}` : `${pet.name}的${personal.homeLabel}`
     const tripStyle = trip ? ` style="--trip-duration:${TRIP_DURATION}ms;--trip-elapsed:-${Math.min(TRIP_DURATION, Math.max(0, Date.now() - petAnimation.startedAt))}ms"` : ''
     const disabled = busy || needsHealth ? 'disabled' : ''
@@ -1033,13 +1050,24 @@
     const toy = item === 'toy'
     return `<section class="story-section"><div class="section-title"><h2>${toy ? '专属玩具' : '专属零食'}</h2><span class="section-note">${toy ? '购买一次，可反复玩 · 开心度 +20' : '每次消耗 1 份 · 饱饱度 +25'}</span></div><div class="catalog-grid supply-catalog">${CATALOG.map(animal => {
       const bag = state.supplies[animal.id], name = PET_SUPPLIES[animal.id][item]
-      return `<article class="panel product-card supply-product" data-supply-product="${animal.id}-${item}"><div class="product-art ${animal.id}" aria-hidden="true">${toy ? window.PetArtwork.toy(animal.id) : window.PetArtwork.snack(animal.id)}</div><h3 class="product-name">${name}</h3><p class="product-intro">${animal.emoji} ${animal.species}专用 · ${toy ? '开心度 +20' : '饱饱度 +25'}</p><span class="supply-stock">${toy ? bag.toy ? '已拥有 · 同类伙伴共用' : '买一次，可反复使用' : `背包里还有 ${bag.snacks} 份`}</span><div class="product-bottom"><span class="product-price">✦ ${SUPPLY_PRICE} 积分</span><button class="primary-button button-small" data-action="buy-supply" data-kind="${animal.id}" data-item="${item}" ${toy && bag.toy ? 'disabled' : ''}>${toy && bag.toy ? '已拥有' : '购买'}</button></div></article>`
+      return `<article class="panel product-card supply-product" data-supply-product="${animal.id}-${item}"><div class="product-art ${animal.id}" aria-hidden="true">${toy ? window.PetArtwork.toy(animal.id) : window.PetArtwork.snack(animal.id)}</div><h3 class="product-name">${name}</h3><p class="product-intro">${animal.emoji} ${animal.species}专用 · ${toy ? '开心度 +20' : '饱饱度 +25'}</p><span class="supply-stock">${toy ? bag.toy ? '已拥有 · 同类伙伴共用' : '买一次，可反复使用' : `背包里还有 ${bag.snacks} 份`}</span><div class="product-bottom"><span class="product-price">✦ ${supplyPrice(animal.id, item)} 积分</span><button class="primary-button button-small" data-action="buy-supply" data-kind="${animal.id}" data-item="${item}" ${toy && bag.toy ? 'disabled' : ''}>${toy && bag.toy ? '已拥有' : '购买'}</button></div></article>`
     }).join('')}</div></section>`
   }
+  function blindBoxArt() {
+    return '<div class="blind-gift" aria-hidden="true"><i class="blind-gift-lid"></i><span>?</span><i class="blind-gift-ribbon"></i><b>✦</b><b>✧</b></div>'
+  }
+  function renderBlindCandidates() {
+    return BLIND_PETS.map(product => `<div class="blind-candidate"><span class="individual-pet-avatar" aria-hidden="true">${renderPetAvatar({ ...product, individuality: { version: 1, number: 1 } })}</span><strong>${product.name}</strong></div>`).join('')
+  }
+  function renderBlindBoxShop() {
+    const sleeping = isPetSleeping()
+    return `<section class="blind-shop panel" aria-label="动物盲盒领养"><div class="blind-shop-art">${blindBoxArt()}<span class="blind-price-tag">✦ ${BLIND_BOX_PRICE} 积分 / 只</span></div><div class="blind-shop-copy"><span class="house-eyebrow">A LITTLE SURPRISE</span><h2>打开一份神秘的陪伴</h2><p>熊猫、小企鹅、小乌龟，哪位伙伴会来你的小家？</p><div class="blind-candidates">${renderBlindCandidates()}</div><p class="blind-rule">每次随机领养 1 只，三种等概率（各 1/3）。可能遇到同种伙伴，每只都有自己的小名、形象和小家。</p><button type="button" class="primary-button" data-action="open-blind-box" ${sleeping ? 'disabled' : ''}>${sleeping ? '06:00 后开启' : `开启动物盲盒 · ${BLIND_BOX_PRICE} 积分`}</button></div></section>`
+  }
+
   function renderShop() {
     const sleeping = isPetSleeping()
-    const products = CATALOG.map(product => `<article class="panel product-card"><div class="product-art ${product.art}">${product.id === 'rabbit' ? `<span class="shop-rabbit-avatar individual-pet-avatar" aria-hidden="true">${renderPetAvatar({ ...product, individuality: { version: 1, number: 1 } })}</span>` : `<span>${product.emoji}</span>`}<span class="product-heart">♥</span></div><h3 class="product-name">${product.name}</h3><p class="product-intro">${product.intro}</p><div class="product-bottom"><span class="product-price">✦ ${product.price}</span>${sleeping ? '<button class="primary-button button-small" disabled>06:00 后领养</button>' : state.points >= product.price ? `<button class="primary-button button-small" data-action="adopt" data-id="${product.id}">领养</button>` : `<span class="need-more">还差 ${product.price - state.points} 分</span>`}</div></article>`).join('')
-    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备玩具和好吃的。')}${sleeping ? renderPetRestNotice() : ''}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div><section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合狗狗、猫咪和小兔子</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section>${renderMedicines()}${renderSupplyShop('toy')}${renderSupplyShop('snack')}<p class="shop-footnote">购买后，到“我的宠物”里的专属背包点击使用。宠物、玩具和食物都是虚拟物品，均使用积分兑换 🐾</p>`
+    const products = CATALOG.filter(product => !product.blindOnly).map(product => `<article class="panel product-card"><div class="product-art ${product.art}">${product.id === 'rabbit' ? `<span class="shop-rabbit-avatar individual-pet-avatar" aria-hidden="true">${renderPetAvatar({ ...product, individuality: { version: 1, number: 1 } })}</span>` : `<span>${product.emoji}</span>`}<span class="product-heart">♥</span></div><h3 class="product-name">${product.name}</h3><p class="product-intro">${product.intro}</p><div class="product-bottom"><span class="product-price">✦ ${product.price}</span>${sleeping ? '<button class="primary-button button-small" disabled>06:00 后领养</button>' : state.points >= product.price ? `<button class="primary-button button-small" data-action="adopt" data-id="${product.id}">领养</button>` : `<span class="need-more">还差 ${product.price - state.points} 分</span>`}</div></article>`).join('')
+    return `${renderHeading('认真努力，兑换喜欢的小惊喜', '积分小铺', '用打卡赚来的积分认识新伙伴，也给它准备玩具和好吃的。')}${sleeping ? renderPetRestNotice() : ''}<div class="shop-wallet"><div><small>我的积分</small><strong>✦ ${state.points}</strong></div><span class="shop-wallet-note">完成作业就能获得更多积分</span></div>${renderBlindBoxShop()}<section><div class="section-title"><h2>挑选一位新伙伴</h2><span class="section-note">领养后会一直陪着你</span></div><div class="catalog-grid">${products}</div></section><section class="story-section"><div class="section-title"><h2>给宠物买点饲料</h2><span class="section-note">一份饲料可以喂一只宠物</span></div><div class="panel food-panel"><span class="food-art">🥣</span><div class="food-copy"><strong>香香宠物粮 × 3</strong><small>适合所有小伙伴</small><em>背包里还有 ${state.food} 份</em></div><div class="food-buy"><span class="product-price">✦ ${FOOD_PRICE}</span><button class="primary-button button-small" data-action="buy-food" ${state.points < FOOD_PRICE ? 'disabled' : ''}>购买</button></div></div></section>${renderMedicines()}${renderSupplyShop('toy')}${renderSupplyShop('snack')}<p class="shop-footnote">购买后，到“我的宠物”里的专属背包点击使用。宠物、玩具和食物都是虚拟物品，均使用积分兑换 🐾</p>`
   }
 
   function commit(message) {
@@ -1306,13 +1334,51 @@
       removeIds.forEach(photoId => { if (photoUrls.has(photoId)) URL.revokeObjectURL(photoUrls.get(photoId)); photoUrls.delete(photoId) })
     }
   }
+  function newAdoptedPet(product) {
+    const now = petClockNow().getTime()
+    const pet = { id: makeId(), species: product.species, name: '', emoji: product.emoji, happiness: 72, satiety: 75, health: 100, playCount: 0, needsUpdatedAt: now, satietyRemainderMs: 0, happinessRemainderMs: 0, healthUpdatedAt: now, healthRemainderMs: 0 }
+    pet.decayRates = createDecayRates(pet.id)
+    return pet
+  }
+  function openBlindBox(opener) {
+    if (actionDialog.open || petAnimation || savingTask || backupBusy) return
+    state = loadState()
+    if (!allowPetInteraction()) return
+    if (state.points < BLIND_BOX_PRICE) return showInsufficientPoints(BLIND_BOX_PRICE)
+    dialogFlow = { stage: 'blind-box-confirm' }
+    dialogContent('领养一位神秘伙伴？', '确认后使用积分开启盲盒，随机迎接一位新伙伴。', `<div class="blind-confirm-art">${blindBoxArt()}</div><div class="blind-candidates">${renderBlindCandidates()}</div><div class="confirmation-card"><strong>本次花费 ${BLIND_BOX_PRICE} 积分</strong><small>熊猫、小企鹅、小乌龟各有 1/3 的机会，可能开出同种动物。每次获得 1 只，新伙伴会立即保存在本机记录中。</small></div><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再想一下</button><button type="button" class="primary-button" data-action="confirm-blind-box">确认花费 ${BLIND_BOX_PRICE} 积分</button></div>`)
+    showActionDialog(opener)
+  }
+  function confirmBlindBox() {
+    if (dialogFlow?.stage !== 'blind-box-confirm' || petAnimation || savingTask || backupBusy) return
+    state = loadState()
+    if (!allowPetInteraction()) { actionDialog.close(); return }
+    if (state.points < BLIND_BOX_PRICE) { actionDialog.close(); return showInsufficientPoints(BLIND_BOX_PRICE) }
+    dialogFlow = { stage: 'blind-box-saving' }
+    const product = BLIND_PETS[Math.floor(Math.random() * BLIND_PETS.length)]
+    const pet = newAdoptedPet(product)
+    state.points -= BLIND_BOX_PRICE
+    state.pets.push(pet)
+    assignPetIdentities(state.pets)
+    addLog(`花费 ${BLIND_BOX_PRICE} 积分打开动物盲盒，迎来了${pet.name}（${pet.species}）`)
+    if (!saveState()) {
+      state = loadState(); dialogFlow = null; actionDialog.close(); render()
+      showToast('领养未能保存，积分没有扣除。请检查存储空间后重试', true)
+      return
+    }
+    activePetId = pet.id
+    dialogFlow = { stage: 'blind-box-reveal', petId: pet.id }
+    render()
+    dialogContent('新伙伴来啦！', `你开出了${product.name}，它的小名叫${pet.name}。`, `<div class="blind-reveal" data-revealed-kind="${product.id}"><span class="blind-confetti">✦ ♡ ✧</span>${blindBoxArt()}<div class="blind-reveal-pet">${renderAnimatedAnimal(pet)}</div></div><div class="confirmation-card"><strong>${escapeHtml(pet.name)} · ${product.name}</strong><small>${product.intro}</small><small>已保存到“我的宠物”，现在就去认识它吧！</small></div><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">先逛逛小铺</button><button type="button" class="primary-button" data-action="visit-blind-pet">去照顾它 →</button></div>`)
+    actionDialog.querySelector('[data-action="visit-blind-pet"]')?.focus()
+  }
+
   function adoptPet(productId) {
     if (!allowPetInteraction()) return
     const product = CATALOG.find(item => item.id === productId)
-    if (!product) return
+    if (!product || product.blindOnly) return
     if (state.points < product.price) return showInsufficientPoints(product.price)
-    const pet = { id: makeId(), species: product.species, name: '', emoji: product.emoji, happiness: 72, satiety: 75, health: 100, playCount: 0, needsUpdatedAt: Date.now(), satietyRemainderMs: 0, happinessRemainderMs: 0, healthUpdatedAt: Date.now(), healthRemainderMs: 0 }
-    pet.decayRates = createDecayRates(pet.id)
+    const pet = newAdoptedPet(product)
     state.points -= product.price
     state.pets.push(pet)
     assignPetIdentities(state.pets)
@@ -1330,11 +1396,12 @@
     if (!Object.hasOwn(PET_SUPPLIES, kind) || !['toy', 'snack'].includes(item)) return
     const bag = state.supplies[kind], name = PET_SUPPLIES[kind][item]
     if (item === 'toy' && bag.toy) return showToast('背包里已有这个玩具，可以反复使用')
-    if (state.points < SUPPLY_PRICE) return showInsufficientPoints(SUPPLY_PRICE)
-    state.points -= SUPPLY_PRICE
+    const price = supplyPrice(kind, item)
+    if (state.points < price) return showInsufficientPoints(price)
+    state.points -= price
     if (item === 'toy') bag.toy = true
     else bag.snacks += 1
-    addLog(`花费 ${SUPPLY_PRICE} 积分，买了${name}${item === 'snack' ? ' 1 份' : ''}`)
+    addLog(`花费 ${price} 积分，买了${name}${item === 'snack' ? ' 1 份' : ''}`)
     commit(`${name}放进背包啦，去宠物的小家使用吧！`)
   }
   function usePetSupply(id, item) {
@@ -1661,6 +1728,11 @@
     if (action === 'edit-bonus' && dialogFlow?.stage === 'bonus-confirm') { dialogFlow.stage = 'bonus'; renderBonusForm() }
     if (action === 'delete-task') deleteTask(button.dataset.id)
     if (action === 'adopt') adoptPet(button.dataset.id)
+    if (action === 'open-blind-box') openBlindBox(button)
+    if (action === 'confirm-blind-box') confirmBlindBox()
+    if (action === 'visit-blind-pet' && dialogFlow?.stage === 'blind-box-reveal') {
+      const id = dialogFlow.petId; dialogFlow = null; actionDialog.close(); currentView = 'pets'; activePetId = id; render(); main.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
     if (action === 'buy-food') buyFood()
     if (action === 'buy-supply') buySupply(button.dataset.kind, button.dataset.item)
     if (action === 'use-supply') usePetSupply(button.dataset.id, button.dataset.item)
