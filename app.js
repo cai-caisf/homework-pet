@@ -1338,27 +1338,36 @@
   }
   function productBoxPrizes() {
     const prizes = [
-      { id: 'food-6', type: 'food', name: '香香宠物粮', quantity: 6, icon: '🥣' },
+      { id: 'food-3', type: 'food', name: '香香宠物粮', quantity: 3, icon: '🥣' },
+      { id: 'food-9', type: 'food', name: '香香宠物粮', quantity: 9, icon: '🥣' },
+      { id: 'capsule-1', type: 'medicine', item: 'capsule', name: MEDICINES.capsule.name, quantity: 1, icon: '💊' },
       { id: 'capsule-2', type: 'medicine', item: 'capsule', name: MEDICINES.capsule.name, quantity: 2, icon: '💊' },
-      { id: 'injection-1', type: 'medicine', item: 'injection', name: MEDICINES.injection.name, quantity: 1, icon: '💉' }
+      { id: 'injection-1', type: 'medicine', item: 'injection', name: MEDICINES.injection.name, quantity: 1, icon: '💉' },
+      { id: 'injection-2', type: 'medicine', item: 'injection', name: MEDICINES.injection.name, quantity: 2, icon: '💉' }
     ]
     const owned = new Set(state.pets.map(petKind))
     for (const product of CATALOG.filter(item => owned.has(item.id))) {
       const kind = product.id, bag = state.supplies[kind]
       if (!bag.toy) prizes.push({ id: `${kind}-toy`, type: 'supply', kind, item: 'toy', name: PET_SUPPLIES[kind].toy, quantity: 1 })
-      prizes.push({ id: `${kind}-snack`, type: 'supply', kind, item: 'snack', name: PET_SUPPLIES[kind].snack, quantity: supplyPrice(kind, 'snack') < 40 ? 2 : 1 })
+      prizes.push({ id: `${kind}-snack`, type: 'supply', kind, item: 'snack', name: PET_SUPPLIES[kind].snack, quantity: 1 })
+      prizes.push({ id: `${kind}-snack-2`, type: 'supply', kind, item: 'snack', name: PET_SUPPLIES[kind].snack, quantity: 2 })
     }
     return prizes
   }
+  function productPrizeValue(prize) {
+    if (prize.type === 'food') return FOOD_PRICE * prize.quantity / 3
+    if (prize.type === 'medicine') return MEDICINES[prize.item].price * prize.quantity
+    return supplyPrice(prize.kind, prize.item) * prize.quantity
+  }
   function renderProductBoxShop() {
-    return `<section class="blind-shop panel product-blind-shop" aria-label="商品盲盒"><div class="blind-shop-art">${blindBoxArt()}<span class="blind-price-tag">✦ ${PRODUCT_BOX_PRICE} 积分 / 盒</span></div><div class="blind-shop-copy"><span class="house-eyebrow">A LITTLE GIFT</span><h2>商品盲盒</h2><p>拆一份神秘好物，为小伙伴准备一点惊喜。</p><p class="blind-rule">商品会直接存入背包。专属商品只匹配已领养的小伙伴，已有的永久玩具不会重复开出。</p><button type="button" class="primary-button" data-action="open-product-box">开启商品盲盒 · ${PRODUCT_BOX_PRICE} 积分</button></div></section>`
+    return `<section class="blind-shop panel product-blind-shop" aria-label="商品盲盒"><div class="blind-shop-art">${blindBoxArt()}<span class="blind-price-tag">✦ ${PRODUCT_BOX_PRICE} 积分 / 盒</span></div><div class="blind-shop-copy"><span class="house-eyebrow">A LITTLE GIFT</span><h2>商品盲盒</h2><p>拆一份神秘好物，为小伙伴准备一点惊喜。</p><p class="blind-rule">商品原价可能低于、等于或高于 50 积分，开盒后显示原价合计。专属商品只匹配已领养的小伙伴，已有的永久玩具不会重复开出。</p><button type="button" class="primary-button" data-action="open-product-box">开启商品盲盒 · ${PRODUCT_BOX_PRICE} 积分</button></div></section>`
   }
   function openProductBox(opener) {
     if (actionDialog.open || savingTask || backupBusy) return
     state = loadState()
     if (state.points < PRODUCT_BOX_PRICE) return showInsufficientPoints(PRODUCT_BOX_PRICE)
     dialogFlow = { stage: 'product-box-confirm' }
-    dialogContent('拆开这份神秘好物？', '确认后扣除积分，商品会立即存入背包。', `<div class="blind-confirm-art">${blindBoxArt()}</div><div class="confirmation-card"><strong>本次花费 ${PRODUCT_BOX_PRICE} 积分</strong><small>随机获得一份商品，专属商品只匹配已领养的小伙伴；没有小伙伴时也能获得常规商品。</small></div><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再想一下</button><button type="button" class="primary-button" data-action="confirm-product-box">确认花费 ${PRODUCT_BOX_PRICE} 积分</button></div>`)
+    dialogContent('拆开这份神秘好物？', '确认后扣除积分，商品会立即存入背包。', `<div class="blind-confirm-art">${blindBoxArt()}</div><div class="confirmation-card"><strong>本次花费 ${PRODUCT_BOX_PRICE} 积分</strong><small>商品原价可能低于、等于或高于本次花费。专属商品只匹配已领养的小伙伴；没有小伙伴时也能获得常规商品。</small></div><div class="dialog-actions"><button type="button" class="outline-button" data-action="close-action-dialog">再想一下</button><button type="button" class="primary-button" data-action="confirm-product-box">确认花费 ${PRODUCT_BOX_PRICE} 积分</button></div>`)
     showActionDialog(opener)
   }
   function applyProductPrize(prize) {
@@ -1388,7 +1397,7 @@
     dialogFlow = { stage: 'product-box-saving' }
     if (!applyProductPrize(prize)) { state = loadState(); actionDialog.close(); render(); return showToast('背包数量暂时无法增加，积分没有扣除', true) }
     state.points -= PRODUCT_BOX_PRICE
-    addLog(`花费 ${PRODUCT_BOX_PRICE} 积分打开商品盲盒，获得${prize.name} × ${prize.quantity}`)
+    addLog(`花费 ${PRODUCT_BOX_PRICE} 积分打开商品盲盒，获得${prize.name} × ${prize.quantity}，原价合计 ${productPrizeValue(prize)} 积分`)
     if (!saveState()) {
       state = loadState(); actionDialog.close(); render()
       return showToast('商品未能保存，积分没有扣除，请稍后再试', true)
@@ -1396,7 +1405,7 @@
     dialogFlow = { stage: 'product-box-reveal' }
     render()
     const art = prize.type === 'supply' ? window.PetArtwork[prize.item](prize.kind) : `<span>${prize.icon}</span>`
-    dialogContent('神秘好物到啦！', '已存入背包，关掉弹窗或刷新都会保留。', `<div class="product-box-reward" data-product-prize="${prize.id}">${art}</div><div class="confirmation-card"><strong>${escapeHtml(prize.name)} × ${prize.quantity}</strong><small>${prize.type === 'supply' ? `${CATALOG.find(item => item.id === prize.kind).species}专用 · ${prize.item === 'toy' ? '可反复使用，去小伙伴家点击使用玩具' : '到小伙伴家点击喂零食'}` : prize.type === 'food' ? `背包里现在有 ${state.food} 份饲料` : `药箱里现在有 ${state.medicines[prize.item]} 份${prize.name}`}</small></div><div class="dialog-actions"><button type="button" class="primary-button" data-action="close-action-dialog">收好啦</button></div>`)
+    dialogContent('神秘好物到啦！', '已存入背包，关掉弹窗或刷新都会保留。', `<div class="product-box-reward" data-product-prize="${prize.id}">${art}</div><div class="confirmation-card"><strong>${escapeHtml(prize.name)} × ${prize.quantity}</strong><small data-prize-value="${productPrizeValue(prize)}">商品原价合计：${productPrizeValue(prize)} 积分 · 本次盲盒：${PRODUCT_BOX_PRICE} 积分</small><small>${prize.type === 'supply' ? `${CATALOG.find(item => item.id === prize.kind).species}专用 · ${prize.item === 'toy' ? '可反复使用，去小伙伴家点击使用玩具' : '到小伙伴家点击喂零食'}` : prize.type === 'food' ? `背包里现在有 ${state.food} 份饲料` : `药箱里现在有 ${state.medicines[prize.item]} 份${prize.name}`}</small></div><div class="dialog-actions"><button type="button" class="primary-button" data-action="close-action-dialog">收好啦</button></div>`)
     actionDialog.querySelector('[data-action="close-action-dialog"]')?.focus()
   }
   function petPurchaseCost(pet) {
