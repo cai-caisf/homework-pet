@@ -425,3 +425,13 @@
 @media (prefers-reduced-motion: reduce) {
   .pet-room-scene:is(.is-eating, .is-snacking) .reference-eat-open { animation: none !important; opacity: 0; }
 }
+
+.product-blind-shop { background: linear-gradient(120deg, #f3ecf7, #faf3ef 65%, #fff7e5); border-color: #dfcfe3; }
+.product-blind-shop .blind-price-tag { color: #8c658e; border-color: #d9c1db; background: #fff9fd; }
+.product-box-reward { display: grid; place-items: center; width: 112px; height: 112px; margin: 18px auto 24px; border: 1px solid #e5d5c7; border-radius: 28px; background: #fff6e7; font-size: 66px; animation: prize-arrive .45s ease-out both; }
+.product-box-reward svg { width: 84px; height: 84px; }
+.pet-return-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 20px; border-top: 1px solid #e5dfd2; background: #faf8f1; }
+.pet-return-row strong { display: block; margin-bottom: 5px; color: #6e796d; font-size: 12px; }
+.pet-return-row small { color: #9a9a8e; font-size: 10px; line-height: 1.8; }
+@keyframes prize-arrive { from { opacity: 0; transform: scale(.6) rotate(-12deg); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .product-box-reward { animation: none; } }
