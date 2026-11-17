@@ -126,7 +126,7 @@
       `<path d="M-20 -5l10 -14l10 9l10 -9l10 14l-5 17h-30Z"/><circle cy="3" r="5" fill="#ffe5a0"/>`,
       `<path d="M-18 -8l11 -9l7 8l7 -8l11 9l-3 19h-30Z"/><path d="M-10 -1h20M0 -8v19" fill="none" stroke="#fff3d9"/>`
     ][(p.number - 1) % 6]
-    return `<g class="pet-personal-accessory reference-adornment" data-decoration="${kind}-${p.number}" transform="translate(${x} ${y}) rotate(${p.pattern * 7 - 7}) scale(.7)" fill="${color}" stroke="#7e6b59" stroke-width="1.7" stroke-linejoin="round"><title>${escape(petDecorationName(p.number))}</title>${shape}<circle cx="17" cy="14" r="7" fill="#fff5dd"/><text x="17" y="17" text-anchor="middle" stroke="none" fill="#705d48" font-size="${p.number > 99 ? 5 : 8}" font-family="sans-serif">${p.number}</text></g>`
+    return `<g class="pet-personal-accessory reference-adornment" data-decoration="${kind}-${p.number}" transform="translate(${x} ${y}) rotate(${p.pattern * 7 - 7}) scale(.7)" fill="${color}" stroke="#7e6b59" stroke-width="1.7" stroke-linejoin="round"><title>${escape(petDecorationName(p.number))}</title>${shape}${kind === 'turtle' ? '' : `<circle cx="17" cy="14" r="7" fill="#fff5dd"/><text x="17" y="17" text-anchor="middle" stroke="none" fill="#705d48" font-size="${p.number > 99 ? 5 : 8}" font-family="sans-serif">${p.number}</text>`}</g>`
   }
   function petDecorationName(number) {
     return ['蝴蝶结','小花','小星星','小叶子','小皇冠','小礼物'][(number - 1) % 6] + '装饰'
