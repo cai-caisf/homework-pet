@@ -6,6 +6,7 @@
     rabbit: { home: '花园小屋', park: '草地公园', playground: '洞洞乐园' },
     panda: { home: '竹林小屋', park: '竹林公园', playground: '竹球乐园' },
     penguin: { home: '冰雪小屋', park: '冰湖公园', playground: '冰雪乐园' },
+    hedgehog: { home: '落叶小窝', park: '落叶公园', playground: '森林探险乐园' },
     turtle: { home: '池塘小院', park: '荷塘公园', playground: '彩石乐园' }
   }
   const escape = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char])
@@ -38,6 +39,11 @@
       ['#303b3e', '#f2a03d', '#1b292e', '#f7fbf5'], ['#343b48', '#f7a04b', '#202735', '#f9fbff'],
       ['#40363b', '#f49545', '#2c2228', '#fff8f1'], ['#363735', '#eca23e', '#252620', '#fffbec']
     ],
+    hedgehog: [
+      ['#fbf4e9','#dfb5a4','#8e6046','#f5e5d2'], ['#faf2e4','#dbad9b','#956b50','#f3e4d1'],
+      ['#fff8eb','#d5ae9c','#866047','#f4e6d7'], ['#f5efdf','#d9b5a3','#937158','#ece1cc'],
+      ['#fff3e8','#e3b3a4','#936650','#f4dfce'], ['#faf4e7','#ddbaa5','#85634a','#f2e5d2']
+    ],
     turtle: [
       ['#c8d85c', '#f4ce65', '#93623d', '#d9a34b'], ['#b9d56d', '#f0ce7b', '#855c3c', '#cea151'],
       ['#cbd46c', '#edc66a', '#a2693b', '#e0aa4d'], ['#a9cc73', '#e6cd7b', '#82613e', '#c8a151'],
@@ -52,10 +58,10 @@
   function profile(pet, kind) {
     const number = Number.isSafeInteger(pet.individuality?.number) && pet.individuality.number > 0 ? pet.individuality.number : 1
     const index = number - 1, [fur, ear, patch, belly] = coats[kind][index % coats[kind].length]
-    const wildRooms = { panda: ['竹林小屋', '青竹客厅', '竹叶小院', '暖竹阁'], penguin: ['冰雪小屋', '极光冰屋', '雪花客厅', '冰湖小筑'], turtle: ['池塘小院', '荷叶小院', '彩石庭院', '水莲小筑'] }
+    const wildRooms = { hedgehog: ['落叶小窝', '橡果小屋', '蘑菇小院', '暖叶树屋'], panda: ['竹林小屋', '青竹客厅', '竹叶小院', '暖竹阁'], penguin: ['冰雪小屋', '极光冰屋', '雪花客厅', '冰湖小筑'], turtle: ['池塘小院', '荷叶小院', '彩石庭院', '水莲小筑'] }
     return { number, fur, ear, patch, belly, pattern: (index + Math.floor(index / 6)) % 3, accessory: (index + Math.floor(index / 18)) % 3,
       accent: ['#7d9f96', '#d59c8b', '#9c9ac5', '#d0ac63', '#8eaf7a', '#b58ea6'][(index + Math.floor(index / 6)) % 6],
-      room: roomColors[(index + ({ cat: 4, rabbit: 3, panda: 3, penguin: 1, turtle: 3 }[kind] || 0)) % roomColors.length],
+      room: roomColors[(index + ({ cat: 4, rabbit: 3, panda: 3, penguin: 1, turtle: 3, hedgehog: 5 }[kind] || 0)) % roomColors.length],
       layout: (number - 2) % 4,
       homeLabel: wildRooms[kind] ? wildRooms[kind][index % 4] : number === 1 ? themes[kind].home : ['星光帐篷屋', '书香小屋', '花窗小屋', '积木小屋'][(number - 2) % 4]
     }
@@ -114,9 +120,9 @@
     return sceneSvg(kind, 'home', `<rect width="720" height="650" fill="${wall}"/><g stroke="${edge}" opacity=".12" stroke-width="2"><path d="M0 120H720M0 200H720M0 280H720M0 360H720"/></g><path d="M0 415H720V650H0Z" fill="${floor}"/><path d="M0 415H720" stroke="${edge}" stroke-width="7"/><g stroke="${edge}" opacity=".3" stroke-width="2"><path d="M0 466H720M0 516H720M0 566H720M0 616H720M130 415V466M480 415V466M270 466V516M620 466V516M120 516V566M470 516V566M300 566V616M650 566V616"/></g>${furniture}<ellipse cx="360" cy="550" rx="180" ry="56" fill="${cloth}" stroke="${edge}" stroke-width="3"/><ellipse cx="360" cy="550" rx="158" ry="40" fill="none" stroke="#fff5e6" stroke-width="3" stroke-dasharray="6 8"/>${keepsake}${sign}`).replace('<svg ', `<svg data-home-owner="${kind}-${p.number}" data-home-layout="${p.layout}" `)
   }
 
-  const isWild = kind => ['panda', 'penguin', 'turtle'].includes(kind)
+  const isWild = kind => ['panda', 'penguin', 'turtle', 'hedgehog'].includes(kind)
   function referenceAdornment(p, kind, sleeping) {
-    const position = sleeping ? {panda:[126,72],penguin:[220,92],turtle:[283,129]} : {panda:[242,63],penguin:[216,67],turtle:[255,172]}
+    const position = sleeping ? {panda:[126,72],penguin:[220,92],turtle:[283,129],hedgehog:[268,104]} : {panda:[242,63],penguin:[216,67],turtle:[255,172],hedgehog:[247,83]}
     const [x,y] = position[kind], color = p.accent
     const shape = [
       `<path d="M-2 0q-21 -20 -23 -3q-3 15 21 9q25 12 26 -4q1 -17 -21 -2Z"/><circle r="5" fill="#fff1bd"/>`,
@@ -136,16 +142,33 @@
     if (!atlas) return `<svg class="pet-character pet-character-${kind}" viewBox="0 0 340 340" role="img" aria-label="宠物图片暂未加载"><text x="170" y="180" text-anchor="middle" fill="#8d7965" font-size="16">宠物图片加载中</text></svg>`
     const id = `reference-atlas-${kind}-${p.number}-${sleeping ? 'sleep' : 'awake'}`
     const clips = atlas.frames.map((b,index) => `<clipPath id="${id}-frame-${index}" clipPathUnits="userSpaceOnUse"><rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}"/></clipPath>`).join('')
-    const frame = (index, name) => `<svg class="reference-frame ${name}" x="${sleeping ? 25 : 9}" y="${sleeping ? 28 : 12}" width="${sleeping ? 370 : 322}" height="${sleeping ? 196 : 310}" viewBox="${atlas.frames[index].join(' ')}" preserveAspectRatio="xMidYMax meet" overflow="hidden"><use href="#${id}" clip-path="url(#${id}-frame-${index})"/></svg>`
+    const frameBox = index => sleeping ? [25,28,370,196] : kind === 'hedgehog' && index === 4 ? [82,150,176,172] : kind === 'hedgehog' && index === 5 ? [25,69,290,253] : [9,12,322,310]
+    const frame = (index, name) => `<svg class="reference-frame ${name}" x="${frameBox(index)[0]}" y="${frameBox(index)[1]}" width="${frameBox(index)[2]}" height="${frameBox(index)[3]}" viewBox="${atlas.frames[index].join(' ')}" preserveAspectRatio="xMidYMax meet" overflow="hidden"><use href="#${id}" clip-path="url(#${id}-frame-${index})"/></svg>`
     const classes = sleeping ? `sleeping-pet-character pet-character-${kind}` : `pet-character pet-character-${kind}`
     // Each frame contains an intact animal. No independently transformed head or legs.
-    return `<svg class="${classes} reference-pet-character" data-art-style="reference-cutout-v1" data-pet-look="${kind}-${p.number}" ${sleeping ? `data-pose="prone" data-animal="${kind}"` : ''} viewBox="${sleeping ? '0 0 420 260' : '0 0 340 340'}" role="img" aria-label="${escape(pet.name)}${sleeping ? '趴卧睡觉' : '的动态'}${escape(pet.species)}原图形象"><defs><image id="${id}" href="${atlas.src}" width="${atlas.width}" height="${atlas.height}"/>${clips}</defs>${sleeping ? `<ellipse cx="210" cy="231" rx="178" ry="19" fill="${p.room[2]}" stroke="${p.accent}" stroke-width="2.5"/>${frame(3,'reference-sleep')}` : `${frame(0,'reference-idle')}${frame(1,'reference-eat-closed')}${frame(2,'reference-eat-open')}`}${referenceAdornment(p,kind,sleeping)}</svg>`
+    return `<svg class="${classes} reference-pet-character" data-art-style="reference-cutout-v1" data-pet-look="${kind}-${p.number}" ${sleeping ? `data-pose="prone" data-animal="${kind}"` : ''} viewBox="${sleeping ? '0 0 420 260' : '0 0 340 340'}" role="img" aria-label="${escape(pet.name)}${sleeping ? '趴卧睡觉' : '的动态'}${escape(pet.species)}原图形象"><defs><image id="${id}" href="${atlas.src}" width="${atlas.width}" height="${atlas.height}"/>${clips}</defs>${sleeping ? `<ellipse cx="210" cy="231" rx="178" ry="19" fill="${p.room[2]}" stroke="${p.accent}" stroke-width="2.5"/>${frame(3,'reference-sleep')}` : `${frame(0,'reference-idle')}${frame(1,'reference-eat-closed')}${frame(2,'reference-eat-open')}${kind === 'hedgehog' ? `${frame(4,'reference-curled')}${frame(5,'reference-peek')}` : ''}`}${referenceAdornment(p,kind,sleeping)}</svg>`
   }
   function bamboo(x, y, h = 215) {
     return `<g transform="translate(${x} ${y})" stroke="#809968" stroke-width="3"><path d="M0 0v-${h}" stroke="#a4ba82" stroke-width="17"/><path d="M-9 -45h18M-9 -99h18M-9 -151h18M-9 -199h18"/><g fill="#9cb681"><path d="M0 -160q-50 -36 -45 -2q18 18 45 2ZM0 -123q45 -48 45 -15q-13 23 -45 15ZM0 -187q38 -38 43 -15q-12 25 -43 15Z"/></g></g>`
   }
+  function hedgehogLeaves() {
+    return `<g stroke="#aa895b" stroke-width="1.8">${[[89,510,20],[604,500,65],[142,573,-30],[574,601,15],[495,520,80],[236,603,-50]].map(([x,y,a],i)=>`<g transform="translate(${x} ${y}) rotate(${a}) scale(.65)"><path d="M0 0q-23 -18 5 -43q30 24 -5 43Z" fill="${['#d3ad71','#b5bd83','#e0b995'][i%3]}"/><path d="M0 0l5 -33M2 -13l-9 -8M3 -21l10 -6" fill="none"/></g>`).join('')}</g>`
+  }
+  function hedgehogHome(p) {
+    const [wall,floor,cloth,edge]=p.room, offset=p.number%2?0:25
+    return sceneSvg('hedgehog','home',`<rect width="720" height="650" fill="${wall}"/><path d="M0 416H720V650H0Z" fill="${floor}"/><path d="M0 416H720" stroke="${edge}" stroke-width="6"/><g stroke="${edge}" opacity=".2" stroke-width="2"><path d="M0 465H720M0 515H720M0 565H720M0 615H720M160 416v49M490 416v49M310 465v50M90 515v50M560 515v50"/></g><g transform="translate(${offset} 0)" stroke="${edge}" stroke-width="4" stroke-linejoin="round"><path d="M94 414v-77q0 -70 88 -70q88 0 88 70v77Z" fill="#d8b991"/><path d="M121 414v-75q0 -45 61 -45q61 0 61 45v75Z" fill="#9d8067"/><ellipse cx="183" cy="412" rx="67" ry="15" fill="${cloth}"/><path d="M83 313q75 -101 196 0q-103 52 -196 0Z" fill="#b8c28b"/><path d="M100 311q73 -30 159 0M154 296l9 17M194 293l-1 20" fill="none" stroke="#8e9e6b" stroke-width="2.5"/><rect x="453" y="148" width="170" height="190" rx="72" fill="#d8e7dc"/><path d="M460 280q75 -74 156 0v51H460Z" fill="#b8caa3" stroke="none"/><path d="M538 153v178M460 248h156"/><path d="M444 141h188" stroke-width="8"/><path d="M447 146h25l-6 141l-19 12M608 146h23v153l-19 -12" fill="${cloth}" stroke-width="2.5"/><rect x="475" y="367" width="152" height="48" rx="16" fill="#d7bd9d"/><path d="M491 415v22M611 415v22"/></g><g transform="translate(589 355)" stroke="#ae8b70" stroke-width="3"><path d="M-9 0h18v50h-18Z" fill="#f5e5c5"/><path d="M-36 0q4 -43 36 -43q32 0 36 43Z" fill="#d5a38c"/><g fill="#fff1d8" stroke="none"><circle cx="-17" cy="-12" r="5"/><circle cx="4" cy="-28" r="5"/><circle cx="20" cy="-9" r="4"/></g></g><ellipse cx="360" cy="553" rx="182" ry="55" fill="${cloth}" stroke="${p.accent}" stroke-width="3"/><ellipse cx="360" cy="553" rx="161" ry="38" fill="none" stroke="#fff8e9" stroke-width="3" stroke-dasharray="6 8"/>${hedgehogLeaves()}`).replace('<svg ',`<svg data-home-layout="hedgehog-${p.number%4}" `)
+  }
+  function hedgehogOutdoor(place) {
+    const play=place==='playground'
+    const trees=`<g stroke="#ad8c64" stroke-width="6"><path d="M84 417V201M637 420V208" stroke-width="23"/><path d="M84 290l-36 -40M637 287l37 -43" fill="none"/><g fill="#c0c791" stroke="#a1b17c" stroke-width="4"><path d="M22 266q-27 -59 20 -85q0 -46 48 -48q45 -16 65 33q46 9 43 53q12 58 -46 73H43Z"/><path d="M554 266q-21 -57 22 -82q2 -45 48 -48q47 -14 69 31q40 10 35 54q11 55 -38 71H572Z"/></g></g>`
+    const tunnel=`<g stroke="#a98c6a" stroke-width="4"><path d="M113 416v-63q0 -59 68 -59q68 0 68 59v63Z" fill="#d8bb94"/><path d="M139 416v-62q0 -34 42 -34q42 0 42 34v62Z" fill="#a38a70"/><path d="M119 339h10M239 339h-10M117 371h12M245 371h-13" fill="none"/><path d="M499 400l41 -59h91l-41 59Z" fill="#dac49e"/><path d="M499 400v35M589 400v35M628 342v46M519 375h87" fill="none"/></g>`
+    const park=`<g stroke="#ac916f" stroke-width="4"><rect x="125" y="370" width="151" height="24" rx="10" fill="#d7bb94"/><path d="M144 395v34M258 395v34"/><path d="M530 397v-30q22 -42 45 0v30Z" fill="#dfb29a"/><path d="M519 367q33 -46 68 0Z" fill="#d9ad87"/></g>`
+    return sceneSvg('hedgehog',place,`<rect width="720" height="650" fill="${play?'#f4edde':'#edf3e5'}"/><circle cx="536" cy="114" r="31" fill="#f5dda8"/><g class="outdoor-clouds" fill="#fffdf5"><path d="M291 188q-5 -25 20 -27q18 -30 38 -7q28 -11 33 18q22 0 20 16Z"/></g><path d="M0 353q180 -70 359 0q180 -64 361 0v297H0Z" fill="#d8dfb4"/>${trees}<path d="M323 377q-80 62 -15 112q77 62 18 161h176q46 -103 -71 -167q-67 -36 -32 -106Z" fill="#e9d9b9" stroke="#c7bb93" stroke-width="3"/>${play?tunnel:park}${hedgehogLeaves()}${flowers('#e8c9b3')}`)
+  }
+
   function wildHome(kind, provided = null) {
     const p = provided || profile({ individuality: { number: 1 } }, kind), shift = p.number % 2 ? 0 : 35
+    if (kind === 'hedgehog') return hedgehogHome(p)
     let wall, floor, decor, rug
     if (kind === 'panda') {
       wall = p.number % 2 ? '#f0f1df' : '#e9efdf'; floor = '#d9c5a0'; rug = p.room[2]
@@ -160,6 +183,7 @@
     return sceneSvg(kind, 'home', `<rect width="720" height="650" fill="${wall}"/><path d="M0 416H720V650H0Z" fill="${floor}"/><path d="M0 416H720" stroke="${kind === 'penguin' ? '#b1ccd6' : '#b9b28e'}" stroke-width="7"/><g stroke="#afbc9b" opacity=".22" stroke-width="2"><path d="M0 465H720M0 515H720M0 565H720M0 615H720M160 416v49M490 416v49M310 465v50M90 515v50M560 515v50"/></g><g transform="translate(${shift / 4} 0)">${decor}</g><ellipse cx="360" cy="554" rx="182" ry="55" fill="${rug}" stroke="${p.accent}" stroke-width="3"/><ellipse cx="360" cy="554" rx="162" ry="39" fill="none" stroke="#fff9e9" stroke-width="3" stroke-dasharray="6 8"/>`).replace('<svg ', `<svg data-home-layout="wild-${p.number % 4}" `)
   }
   function wildOutdoor(kind, place) {
+    if (kind === 'hedgehog') return hedgehogOutdoor(place)
     const play = place === 'playground', ice = kind === 'penguin', turtle = kind === 'turtle'
     const sky = ice ? '#e6f1fb' : turtle ? '#edf2dc' : '#e9f2de', ground = ice ? '#e9f8fa' : turtle ? '#d3e2bd' : '#c7d9ae'
     let backdrop, equipment
@@ -176,11 +200,13 @@
     return sceneSvg(kind, place, `<rect width="720" height="650" fill="${sky}"/><circle cx="545" cy="120" r="29" fill="#f7dfa2"/><g class="outdoor-clouds" fill="#fffdf5"><path d="M121 185q-5 -29 22 -29q19 -35 40 -9q29 -13 36 19q23 -2 21 19Z"/></g><path d="M0 352q182 -62 357 3q181 -60 363 -1v296H0Z" fill="${ground}"/>${backdrop}${equipment}${!ice ? flowers(turtle ? '#eec4c8' : '#f6e6a7') : ''}`)
   }
   function wildToy(kind) {
+    if (kind === 'hedgehog') return '<svg viewBox="0 0 80 80"><g stroke="#a58b6f" stroke-width="3" stroke-linejoin="round"><path d="M8 63V37q0 -25 31 -25q31 0 31 25v26Z" fill="#d8ba94"/><path d="M22 63V38q0 -13 17 -13q17 0 17 13v25Z" fill="#a58c73"/><path d="M13 29l8 3M10 44h9M66 30l-7 3M69 45h-10" fill="none"/><path d="M31 20q-8 -17 4 -17q13 5 5 15Z" fill="#bdc78d" stroke-width="2"/></g></svg>'
     if (kind === 'panda') return '<svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="31" fill="#bed09d" stroke="#7e9d68" stroke-width="4"/><path d="M23 14q25 24 8 55M43 9q27 30 13 58M10 32q30 14 62 3M13 49q27 15 56 4" fill="none" stroke="#8eae77" stroke-width="4"/><path d="M29 26l6 3M49 44l7 2" stroke="#f1edd0" stroke-width="3"/></svg>'
     if (kind === 'penguin') return '<svg viewBox="0 0 80 80"><g transform="rotate(-15 40 40)" stroke="#7e9faf" stroke-width="3"><path d="M11 33q28 -16 58 0v17q-28 16 -58 0Z" fill="#bcdaea"/><path d="M19 52v9M61 52v9M14 62h53" fill="none" stroke="#9cabb7" stroke-width="4"/><path d="M40 26v19M31 30l18 12M49 30L31 42" fill="none" stroke="#f9ffff" stroke-width="3"/></g></svg>'
     return '<svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="30" fill="#c4d9bb" stroke="#91ac83" stroke-width="4"/><circle cx="27" cy="29" r="10" fill="#e5c5b7"/><circle cx="52" cy="26" r="9" fill="#b1cbd6"/><circle cx="45" cy="52" r="12" fill="#e7d495"/><path d="M12 43q26 -9 56 6" fill="none" stroke="#8eae87" stroke-width="3"/></svg>'
   }
   function wildSnack(kind) {
+    if (kind === 'hedgehog') return '<svg viewBox="0 0 80 80"><ellipse cx="40" cy="46" rx="31" ry="23" fill="#e6c58f" stroke="#b58e61" stroke-width="3"/><ellipse cx="40" cy="39" rx="25" ry="18" fill="#f2d8a9"/><g fill="#c98590" stroke="#9e6470" stroke-width="2"><circle cx="28" cy="35" r="7"/><circle cx="49" cy="43" r="6"/><circle cx="45" cy="25" r="7"/></g><path d="M43 19q-6 -15 9 -14q10 9 -4 14Z" fill="#aac28c" stroke="#88a274" stroke-width="2"/><g fill="#c69c6c"><circle cx="25" cy="49" r="2"/><circle cx="42" cy="53" r="2"/><circle cx="56" cy="31" r="2"/></g></svg>'
     if (kind === 'panda') return '<svg viewBox="0 0 80 80"><g stroke="#9da578" stroke-width="3" stroke-linejoin="round"><path d="M19 65q-1 -32 21 -54q24 27 23 54Z" fill="#e2d8a3"/><path d="M23 48l17 14l19 -14M29 32l12 13l11 -13M38 16l1 51" fill="none"/><path d="M42 22q22 -20 28 -2q-9 14 -28 2Z" fill="#a9c58c"/></g></svg>'
     if (kind === 'penguin') return '<svg viewBox="0 0 80 80"><g stroke="#8ca8ae" stroke-width="3" stroke-linejoin="round"><path d="M12 40q23 -31 48 -7l15 -13v39L60 46q-26 24 -48 -6Z" fill="#b7d6dd"/><path d="M42 24l9 -9l6 14M44 54l8 10l6 -14" fill="#d4e4dd"/><path d="M43 28q-12 13 0 25" fill="none"/><circle cx="26" cy="37" r="3" fill="#53696e" stroke="none"/></g></svg>'
     return '<svg viewBox="0 0 80 80"><g stroke="#89a878" stroke-width="3"><path d="M23 66q-26 -23 -6 -45q14 -16 24 2q16 -28 29 -4q10 19 -11 40q-13 13 -36 7Z" fill="#c4dca4"/><path d="M21 63q20 -31 40 -40M34 46l-13 -12M43 37l16 7M28 55l21 3" fill="none"/><path d="M20 65l-6 8" stroke-width="5" stroke-linecap="round"/></g><circle cx="29" cy="25" r="3" fill="#f9fff1" stroke="none"/></svg>'
