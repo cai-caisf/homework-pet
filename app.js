@@ -9,9 +9,11 @@
     { id: 'panda', species: '熊猫', name: '熊猫', nameBase: '竹竹', emoji: '🐼', intro: '软乎乎的小团子，最爱抱竹球', price: 100, art: 'panda', blindOnly: true },
     { id: 'penguin', species: '企鹅', name: '小企鹅', nameBase: '冰冰', emoji: '🐧', intro: '摇摇摆摆，喜欢在冰面滑行', price: 100, art: 'penguin', blindOnly: true },
     { id: 'turtle', species: '乌龟', name: '小乌龟', nameBase: '慢慢', emoji: '🐢', intro: '慢慢爬呀爬，喜欢池塘和阳光', price: 100, art: 'turtle', blindOnly: true },
-    { id: 'hedgehog', species: '刺猬', name: '小刺猬', nameBase: '栗栗', emoji: '🦔', intro: '圆滚滚的小伙伴，喜欢落叶和小隧道', price: 100, art: 'hedgehog', blindOnly: true }
+    { id: 'hedgehog', species: '刺猬', name: '小刺猬', nameBase: '栗栗', emoji: '🦔', intro: '圆滚滚的小伙伴，喜欢落叶和小隧道', price: 100, art: 'hedgehog', blindOnly: true },
+    { id: 'squirrel', species: '松鼠', name: '小松鼠', nameBase: '松松', emoji: '🐿️', intro: '蓬松的大尾巴，喜欢松果和森林探险', price: 100, art: 'squirrel', blindOnly: true }
   ]
   const PET_NAMES = {
+    squirrel: ['松松', '果仁', '橡橡', '榛果', '小橙', '蓬蓬', '秋秋', '核桃', '小森', '暖橘', '松饼', '芽果'],
     dog: ['团团', '豆豆', '布丁', '麦麦', '可乐', '奶盖', '旺仔', '栗子', '点点', '汤圆', '曲奇', '花卷'],
     cat: ['咪咪', '糯米', '桃桃', '芝麻', '橘子', '奶糖', '泡芙', '月牙', '铃铛', '棉花', '芋圆', '星星'],
     rabbit: ['跳跳', '雪球', '糯糯', '萝萝', '棉棉', '桃酥', '云朵', '米粒', '小葵', '软糖', '芽芽', '雪糕'],
@@ -34,6 +36,7 @@
     injection: { name: '健康针剂', icon: '💉', price: 50, recovery: 20, action: '打针' }
   }
   const PET_SUPPLIES = {
+    squirrel: { toy: '松果滚滚球', snack: '坚果小拼盘', toyPrice: 60, snackPrice: 40, play: '推推松果球，蹦蹦跳跳追上它～', eat: '咔嚓咔嚓，坚果香香脆脆～', outing: '蹦过小木桥，再去寻找小松果～' },
     dog: { toy: '骨头响响玩具', snack: '骨头饼干', play: '抱住小骨头，摇摇尾巴真开心～', eat: '咔嚓咔嚓，骨头饼干真香～' },
     cat: { toy: '毛线球', snack: '小鱼饼干', play: '扑一扑，毛线球别跑呀～', eat: '喵呜，小鱼饼干真好吃～' },
     rabbit: { toy: '萝卜滚滚球', snack: '鲜嫩菜叶', play: '蹦蹦跳跳，推一推萝卜球～', eat: '嚼一嚼，菜叶脆脆甜甜～' },
@@ -712,7 +715,7 @@
   function renderPetAvatar(pet) {
     const image = renderAnimatedAnimal(pet)
     // Rabbit ears are part of its silhouette. Frame the whole head instead of cropping the body thumbnail.
-    const frames = { rabbit: '65 -4 210 242', panda: '0 0 340 340', penguin: '0 0 340 340', turtle: '0 0 340 340', hedgehog: '0 0 340 340' }
+    const frames = { rabbit: '65 -4 210 242', panda: '0 0 340 340', penguin: '0 0 340 340', turtle: '0 0 340 340', hedgehog: '0 0 340 340', squirrel: '0 0 340 340' }
     return frames[petKind(pet)] ? image.replace('viewBox="0 0 340 340"', `viewBox="${frames[petKind(pet)]}"`) : image
   }
 
@@ -852,6 +855,7 @@
   }
 
   function petKind(pet) {
+    if (pet.species.includes('松鼠')) return 'squirrel'
     if (pet.species.includes('刺猬')) return 'hedgehog'
     if (pet.species.includes('熊猫')) return 'panda'
     if (pet.species.includes('企鹅')) return 'penguin'
@@ -927,7 +931,7 @@
   function renderAnimatedAnimal(pet, sleeping = false) {
     const kind = petKind(pet)
     if (sleeping) return window.PetArtwork.sleeping(pet, kind)
-    if (['panda', 'penguin', 'turtle', 'hedgehog'].includes(kind)) return window.PetArtwork.wildAnimal(pet, kind)
+    if (['panda', 'penguin', 'turtle', 'hedgehog', 'squirrel'].includes(kind)) return window.PetArtwork.wildAnimal(pet, kind)
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
     const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
     const tail = kind === 'rabbit'
@@ -1416,7 +1420,7 @@
   function petPurchaseCost(pet) {
     if (Number.isSafeInteger(pet.adoptionCost) && pet.adoptionCost >= 0) return pet.adoptionCost
     // Older backups predate purchase tracking; their catalogue prices were fixed.
-    if (!/狗|猫|兔|企鹅|龟|刺猬/.test(pet.species) && !CATALOG.some(item => item.emoji === pet.emoji)) return 0
+    if (!/狗|猫|兔|企鹅|龟|刺猬|松鼠/.test(pet.species) && !CATALOG.some(item => item.emoji === pet.emoji)) return 0
     return CATALOG.find(item => item.id === petKind(pet))?.price ?? 0
   }
   function petReturnSignature(pet) {
