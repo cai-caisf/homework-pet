@@ -8,7 +8,8 @@
     { id: 'rabbit', species: '兔兔', name: '小兔', nameBase: '跳跳', emoji: '🐰', intro: '蹦蹦跳跳，喜欢胡萝卜', price: 60, art: 'rabbit' },
     { id: 'panda', species: '熊猫', name: '熊猫', nameBase: '竹竹', emoji: '🐼', intro: '软乎乎的小团子，最爱抱竹球', price: 100, art: 'panda', blindOnly: true },
     { id: 'penguin', species: '企鹅', name: '小企鹅', nameBase: '冰冰', emoji: '🐧', intro: '摇摇摆摆，喜欢在冰面滑行', price: 100, art: 'penguin', blindOnly: true },
-    { id: 'turtle', species: '乌龟', name: '小乌龟', nameBase: '慢慢', emoji: '🐢', intro: '慢慢爬呀爬，喜欢池塘和阳光', price: 100, art: 'turtle', blindOnly: true }
+    { id: 'turtle', species: '乌龟', name: '小乌龟', nameBase: '慢慢', emoji: '🐢', intro: '慢慢爬呀爬，喜欢池塘和阳光', price: 100, art: 'turtle', blindOnly: true },
+    { id: 'hedgehog', species: '刺猬', name: '小刺猬', nameBase: '栗栗', emoji: '🦔', intro: '圆滚滚的小伙伴，喜欢落叶和小隧道', price: 100, art: 'hedgehog', blindOnly: true }
   ]
   const PET_NAMES = {
     dog: ['团团', '豆豆', '布丁', '麦麦', '可乐', '奶盖', '旺仔', '栗子', '点点', '汤圆', '曲奇', '花卷'],
@@ -16,6 +17,7 @@
     rabbit: ['跳跳', '雪球', '糯糯', '萝萝', '棉棉', '桃酥', '云朵', '米粒', '小葵', '软糖', '芽芽', '雪糕'],
     panda: ['竹竹', '圆宝', '笋笋', '绵绵', '团子', '墨墨', '福宝', '芝芝', '糍粑', '奶团', '竹叶', '暖宝'],
     penguin: ['冰冰', '啾啾', '雪团', '波波', '蓝蓝', '小浪', '极光', '冰糖', '泡泡', '雪豆', '小霜', '啵啵'],
+    hedgehog: ['栗栗', '刺刺', '松果', '小栗', '团栗', '榛榛', '棕棕', '小芽', '球球', '果果', '米栗', '暖栗'],
     turtle: ['慢慢', '石头', '青豆', '苔苔', '小池', '翡翠', '荷荷', '豆芽', '绿宝', '小溪', '年年', '安安']
   }
   const FOOD_PRICE = 20
@@ -37,6 +39,7 @@
     rabbit: { toy: '萝卜滚滚球', snack: '鲜嫩菜叶', play: '蹦蹦跳跳，推一推萝卜球～', eat: '嚼一嚼，菜叶脆脆甜甜～' },
     panda: { toy: '竹球', snack: '脆嫩竹笋', toyPrice: 60, snackPrice: 40, play: '抱住竹球，滚一滚真开心～', eat: '咔嚓咔嚓，竹笋香香脆脆～', outing: '抱着竹球打个滚，再慢慢爬起来～' },
     penguin: { toy: '小小滑冰板', snack: '鲜香小鱼', toyPrice: 80, snackPrice: 50, play: '踩上滑冰板，嗖地滑过去～', eat: '啊呜，小鱼真好吃～', outing: '拍拍小翅膀，滑一滑冰道～' },
+    hedgehog: { toy: '探险隧道', snack: '浆果小饼', toyPrice: 60, snackPrice: 40, play: '探探头，钻进小隧道，再团成小球～', eat: '嚼一嚼，浆果小饼香香甜甜～', outing: '滚进落叶堆，再从小隧道探出头～' },
     turtle: { toy: '彩石滚滚球', snack: '清甜菜叶', toyPrice: 40, snackPrice: 30, play: '推推彩石球，慢慢追上它～', eat: '嚼一嚼，菜叶清清甜甜～', outing: '沿着彩石小路，慢慢向前爬～' }
   }
   const BLIND_PETS = CATALOG.filter(item => item.blindOnly)
@@ -709,7 +712,7 @@
   function renderPetAvatar(pet) {
     const image = renderAnimatedAnimal(pet)
     // Rabbit ears are part of its silhouette. Frame the whole head instead of cropping the body thumbnail.
-    const frames = { rabbit: '65 -4 210 242', panda: '0 0 340 340', penguin: '0 0 340 340', turtle: '0 0 340 340' }
+    const frames = { rabbit: '65 -4 210 242', panda: '0 0 340 340', penguin: '0 0 340 340', turtle: '0 0 340 340', hedgehog: '0 0 340 340' }
     return frames[petKind(pet)] ? image.replace('viewBox="0 0 340 340"', `viewBox="${frames[petKind(pet)]}"`) : image
   }
 
@@ -849,6 +852,7 @@
   }
 
   function petKind(pet) {
+    if (pet.species.includes('刺猬')) return 'hedgehog'
     if (pet.species.includes('熊猫')) return 'panda'
     if (pet.species.includes('企鹅')) return 'penguin'
     if (pet.species.includes('龟')) return 'turtle'
@@ -916,13 +920,14 @@
   }
   function renderTripProps(scene, kind = 'dog') {
     if (scene === 'park') return `<div class="trip-butterfly" aria-hidden="true"><svg viewBox="0 0 60 50"><g class="butterfly-wings" fill="#edc58c" stroke="#b5976d" stroke-width="2"><path d="M30 26Q-1 4 7 30Q11 48 30 30Q54 51 54 27Q58 1 30 26Z"/></g><path d="M30 21V36M30 22L25 17M30 22L35 16" stroke="#9b805c" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>`
+    if (kind === 'hedgehog') return `<div class="hedgehog-trip-prop" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
     if (kind !== 'dog') return `<div class="trip-ball" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
     return `<div class="trip-ball" aria-hidden="true"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="33" fill="#e9bb7c" stroke="#ac8c68" stroke-width="4"/><path d="M40 7Q16 40 40 73M40 7Q66 40 40 73" fill="#a9c7be" stroke="#ac8c68" stroke-width="3"/><path d="M9 29Q39 47 71 29" fill="none" stroke="#fff4d5" stroke-width="5"/></svg></div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
   }
   function renderAnimatedAnimal(pet, sleeping = false) {
     const kind = petKind(pet)
     if (sleeping) return window.PetArtwork.sleeping(pet, kind)
-    if (['panda', 'penguin', 'turtle'].includes(kind)) return window.PetArtwork.wildAnimal(pet, kind)
+    if (['panda', 'penguin', 'turtle', 'hedgehog'].includes(kind)) return window.PetArtwork.wildAnimal(pet, kind)
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
     const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
     const tail = kind === 'rabbit'
@@ -1005,7 +1010,7 @@
         <div class="pet-floor-shadow" aria-hidden="true"></div><div class="pet-figure">${renderAnimatedAnimal(pet, sleeping)}</div>${sleeping ? '<div class="pet-sleep-sign" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div><div class="pet-night-moon" aria-hidden="true">☾</div>' : ''}
         ${mode === 'healing' ? `<div class="pet-medicine-prop" aria-hidden="true"><span>${MEDICINES[petAnimation.medicine].icon}</span><i>✦</i><i>♡</i></div>` : trip ? renderTripProps(scene, kind) : mode === 'toy' ? `<div class="pet-toy-prop" data-toy-kind="${kind}" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="toy-sparkles" aria-hidden="true">✦ <span>✧</span></div>` : mode === 'snacking' ? `<div class="pet-snack-plate" data-snack-kind="${kind}" aria-hidden="true"><span class="snack-serving">${window.PetArtwork.snack(kind)}</span></div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>` : `<div class="room-food-bowl">${renderFoodBowl()}</div><div class="food-crumbs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>`}<div class="pet-affection" aria-hidden="true"><span>♥</span><span>♥</span><span>✦</span></div>
         ${state.pets.length > 1 ? `<button class="room-switch room-switch-prev" data-action="previous-pet" aria-label="上一只宠物" ${switchDisabled}>‹</button><button class="room-switch room-switch-next" data-action="next-pet" aria-label="下一只宠物" ${switchDisabled}>›</button>` : ''}
-        <span class="room-floor-note">${sleeping ? '晚安，明早 06:00 自动醒来' : mode === 'healing' ? `${MEDICINES[petAnimation.medicine].name}恢复中 · 健康度 +${petAnimation.gain}%` : mode === 'toy' ? `${items.toy}陪玩时间 · 开心度 +${petAnimation.gain}%` : mode === 'snacking' ? `正在享用${items.snack} · 饱饱度 +${petAnimation.gain}%` : mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? '蹦蹦跳跳追小球 · 稍后回到小家' : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
+        <span class="room-floor-note">${sleeping ? '晚安，明早 06:00 自动醒来' : mode === 'healing' ? `${MEDICINES[petAnimation.medicine].name}恢复中 · 健康度 +${petAnimation.gain}%` : mode === 'toy' ? `${items.toy}陪玩时间 · 开心度 +${petAnimation.gain}%` : mode === 'snacking' ? `正在享用${items.snack} · 饱饱度 +${petAnimation.gain}%` : mode === 'eating' ? '正在享用一份香香宠物粮' : scene === 'park' ? '沿着小路散散步 · 稍后回到小家' : scene === 'playground' ? (kind === 'hedgehog' ? '探探隧道，滚滚落叶 · 稍后回到小家' : '蹦蹦跳跳追小球 · 稍后回到小家') : '每一次陪伴，都在悄悄长大'}</span>${trip ? '<div class="trip-progress" aria-hidden="true"><span></span></div>' : ''}
       </div>
       ${!sleeping && needsHealth ? `<p class="pet-health-notice">❤️ 健康度 ${pet.health}%，请先用下方药箱恢复到 ${MIN_INTERACTION_HEALTH}%，再喂食、陪玩或出游。</p>` : !sleeping && lowMood ? '<p class="pet-mood-notice">💛 开心度达到 50% 才能喂食或吃零食。玩玩具 +20%，去公园 +18%，宠物乐园 +26%，最高 100%。</p>' : ''}
       <div class="pet-care-dock" aria-label="照顾宠物">
@@ -1411,7 +1416,7 @@
   function petPurchaseCost(pet) {
     if (Number.isSafeInteger(pet.adoptionCost) && pet.adoptionCost >= 0) return pet.adoptionCost
     // Older backups predate purchase tracking; their catalogue prices were fixed.
-    if (!/狗|猫|兔|企鹅|龟/.test(pet.species) && !CATALOG.some(item => item.emoji === pet.emoji)) return 0
+    if (!/狗|猫|兔|企鹅|龟|刺猬/.test(pet.species) && !CATALOG.some(item => item.emoji === pet.emoji)) return 0
     return CATALOG.find(item => item.id === petKind(pet))?.price ?? 0
   }
   function petReturnSignature(pet) {
