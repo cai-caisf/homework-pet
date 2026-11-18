@@ -437,6 +437,15 @@
 @media (prefers-reduced-motion: reduce) { .product-box-reward { animation: none; } }
 
 /* A complete six-pose hedgehog; no detached heads, feet or quills. */
+.individual-pet-avatar .pet-character-squirrel { transform: none; }
+.is-toy[data-pet-kind="squirrel"] .pet-figure { animation: squirrel-acorn-hop 2s ease-in-out infinite; }
+.is-toy[data-pet-kind="squirrel"] .pet-toy-prop { animation: toy-yarn-roll 2s ease-in-out infinite; }
+.scene-playground[data-pet-kind="squirrel"] .pet-figure { animation: squirrel-acorn-hop 2.6s ease-in-out infinite; }
+.scene-park[data-pet-kind="squirrel"] .pet-figure { animation-duration: 4.8s; }
+@keyframes squirrel-acorn-hop { 0%,100% { transform: translate(-20px,0) rotate(-3deg); } 24% { transform: translate(0,-24px) rotate(2deg); } 42% { transform: translate(22px,0) rotate(3deg); } 68% { transform: translate(6px,-17px) rotate(-2deg); } 82% { transform: translate(-12px,0) rotate(-3deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pet-room-scene[data-pet-kind="squirrel"] .pet-figure, .is-toy[data-pet-kind="squirrel"] .pet-toy-prop { animation: none !important; }
+}
 .reference-curled, .reference-peek { opacity: 0; }
 .individual-pet-avatar .pet-character-hedgehog { transform: none; }
 .product-art.hedgehog { background: #f4eadf; }
