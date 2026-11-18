@@ -435,3 +435,23 @@
 .pet-return-row small { color: #9a9a8e; font-size: 10px; line-height: 1.8; }
 @keyframes prize-arrive { from { opacity: 0; transform: scale(.6) rotate(-12deg); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .product-box-reward { animation: none; } }
+
+/* A complete six-pose hedgehog; no detached heads, feet or quills. */
+.reference-curled, .reference-peek { opacity: 0; }
+.individual-pet-avatar .pet-character-hedgehog { transform: none; }
+.product-art.hedgehog { background: #f4eadf; }
+.pet-room-scene[data-pet-kind="hedgehog"]:is(.is-toy, .scene-playground) .reference-idle { opacity: 0; }
+.pet-room-scene[data-pet-kind="hedgehog"]:is(.is-toy, .scene-playground) .reference-peek { animation: hedgehog-peek-frames 4.4s steps(1,end) infinite; }
+.pet-room-scene[data-pet-kind="hedgehog"]:is(.is-toy, .scene-playground) .reference-curled { animation: hedgehog-curl-frames 4.4s steps(1,end) infinite; }
+.pet-room-scene[data-pet-kind="hedgehog"]:is(.is-toy, .scene-playground) .reference-adornment { opacity: 0; }
+:is(.is-toy, .scene-playground)[data-pet-kind="hedgehog"] .pet-figure { transform-origin: 50% 72%; animation: hedgehog-tunnel 4.4s ease-in-out infinite; }
+.is-toy[data-pet-kind="hedgehog"] .pet-toy-prop, .hedgehog-trip-prop { position: absolute; z-index: 3; bottom: 57px; left: calc(50% + 57px); width: 114px; height: 93px; animation: none; pointer-events: none; }
+.hedgehog-trip-prop svg { display: block; width: 100%; height: 100%; }
+.scene-park[data-pet-kind="hedgehog"] .pet-figure { animation-duration: 7s; }
+@keyframes hedgehog-peek-frames { 0%, 38% { opacity: 1; } 39%, 78% { opacity: 0; } 79%, 100% { opacity: 1; } }
+@keyframes hedgehog-curl-frames { 0%, 38% { opacity: 0; } 39%, 78% { opacity: 1; } 79%, 100% { opacity: 0; } }
+@keyframes hedgehog-tunnel { 0%,100% { transform: translate(-24px,0) rotate(-2deg); } 25% { transform: translate(-5px,-2px); } 38%,39% { transform: translate(0,0); } 62% { transform: translate(36px,0) rotate(115deg); } 78% { transform: translate(20px,0) rotate(190deg); } 79% { transform: translate(0,0); } }
+@media (prefers-reduced-motion: reduce) {
+  .pet-room-scene[data-pet-kind="hedgehog"]:is(.is-toy, .scene-playground) .reference-curled { animation: none !important; opacity: 0; }
+  .pet-room-scene[data-pet-kind="hedgehog"]:is(.is-toy, .scene-playground) .reference-peek { animation: none !important; opacity: 1; }
+}
