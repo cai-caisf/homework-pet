@@ -437,6 +437,15 @@
 @media (prefers-reduced-motion: reduce) { .product-box-reward { animation: none; } }
 
 /* A complete six-pose hedgehog; no detached heads, feet or quills. */
+.individual-pet-avatar .pet-character-parrot { transform: none; }
+.pet-room-scene[data-pet-kind="parrot"]:is(.is-toy, .scene-playground) .pet-figure { transform-origin: 56% 8%; animation: parrot-sway 2.4s ease-in-out infinite; }
+.pet-room-scene[data-pet-kind="parrot"] .pet-toy-prop, .parrot-trip-prop { position: absolute; z-index: 1; left: calc(50% - var(--pet-size) * .35); bottom: 55px; width: calc(var(--pet-size) * .9); height: calc(var(--pet-size) * .95); transform-origin: 50% 0%; animation: parrot-sway 2.4s ease-in-out infinite; pointer-events: none; }
+.parrot-trip-prop svg { display: block; width: 100%; height: 100%; }
+.scene-park[data-pet-kind="parrot"] .pet-figure { animation-duration: 5.5s; }
+@keyframes parrot-sway { 0%,100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pet-room-scene[data-pet-kind="parrot"] .pet-figure, .pet-room-scene[data-pet-kind="parrot"] .pet-toy-prop, .parrot-trip-prop { animation: none !important; }
+}
 .individual-pet-avatar .pet-character-squirrel { transform: none; }
 .is-toy[data-pet-kind="squirrel"] .pet-figure { animation: squirrel-acorn-hop 2s ease-in-out infinite; }
 .is-toy[data-pet-kind="squirrel"] .pet-toy-prop { animation: toy-yarn-roll 2s ease-in-out infinite; }
