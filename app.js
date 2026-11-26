@@ -10,9 +10,11 @@
     { id: 'penguin', species: '企鹅', name: '小企鹅', nameBase: '冰冰', emoji: '🐧', intro: '摇摇摆摆，喜欢在冰面滑行', price: 100, art: 'penguin', blindOnly: true },
     { id: 'turtle', species: '乌龟', name: '小乌龟', nameBase: '慢慢', emoji: '🐢', intro: '慢慢爬呀爬，喜欢池塘和阳光', price: 100, art: 'turtle', blindOnly: true },
     { id: 'hedgehog', species: '刺猬', name: '小刺猬', nameBase: '栗栗', emoji: '🦔', intro: '圆滚滚的小伙伴，喜欢落叶和小隧道', price: 100, art: 'hedgehog', blindOnly: true },
-    { id: 'squirrel', species: '松鼠', name: '小松鼠', nameBase: '松松', emoji: '🐿️', intro: '蓬松的大尾巴，喜欢松果和森林探险', price: 100, art: 'squirrel', blindOnly: true }
+    { id: 'squirrel', species: '松鼠', name: '小松鼠', nameBase: '松松', emoji: '🐿️', intro: '蓬松的大尾巴，喜欢松果和森林探险', price: 100, art: 'squirrel', blindOnly: true },
+    { id: 'parrot', species: '鹦鹉', name: '小鹦鹉', nameBase: '彩彩', emoji: '🦜', intro: '漂亮的彩色羽毛，喜欢果香和小秋千', price: 100, art: 'parrot', blindOnly: true }
   ]
   const PET_NAMES = {
+    parrot: ['彩彩', '小桃', '青羽', '蓝宝', '金芒', '果冻', '啾宝', '云羽', '彩虹', '蜜柚', '铃羽', '星羽'],
     squirrel: ['松松', '果仁', '橡橡', '榛果', '小橙', '蓬蓬', '秋秋', '核桃', '小森', '暖橘', '松饼', '芽果'],
     dog: ['团团', '豆豆', '布丁', '麦麦', '可乐', '奶盖', '旺仔', '栗子', '点点', '汤圆', '曲奇', '花卷'],
     cat: ['咪咪', '糯米', '桃桃', '芝麻', '橘子', '奶糖', '泡芙', '月牙', '铃铛', '棉花', '芋圆', '星星'],
@@ -36,6 +38,7 @@
     injection: { name: '健康针剂', icon: '💉', price: 50, recovery: 20, action: '打针' }
   }
   const PET_SUPPLIES = {
+    parrot: { toy: '彩环秋千', snack: '鲜果籽粒拼盘', toyPrice: 70, snackPrice: 30, play: '晃一晃彩环，轻轻摆动长尾巴～', eat: '啄一啄，鲜果籽粒香香甜甜～', outing: '逛过花果林，再去彩环上荡秋千～' },
     squirrel: { toy: '松果滚滚球', snack: '坚果小拼盘', toyPrice: 60, snackPrice: 40, play: '推推松果球，蹦蹦跳跳追上它～', eat: '咔嚓咔嚓，坚果香香脆脆～', outing: '蹦过小木桥，再去寻找小松果～' },
     dog: { toy: '骨头响响玩具', snack: '骨头饼干', play: '抱住小骨头，摇摇尾巴真开心～', eat: '咔嚓咔嚓，骨头饼干真香～' },
     cat: { toy: '毛线球', snack: '小鱼饼干', play: '扑一扑，毛线球别跑呀～', eat: '喵呜，小鱼饼干真好吃～' },
@@ -715,7 +718,7 @@
   function renderPetAvatar(pet) {
     const image = renderAnimatedAnimal(pet)
     // Rabbit ears are part of its silhouette. Frame the whole head instead of cropping the body thumbnail.
-    const frames = { rabbit: '65 -4 210 242', panda: '0 0 340 340', penguin: '0 0 340 340', turtle: '0 0 340 340', hedgehog: '0 0 340 340', squirrel: '0 0 340 340' }
+    const frames = { rabbit: '65 -4 210 242', panda: '0 0 340 340', penguin: '0 0 340 340', turtle: '0 0 340 340', hedgehog: '0 0 340 340', squirrel: '0 0 340 340', parrot: '0 0 340 340' }
     return frames[petKind(pet)] ? image.replace('viewBox="0 0 340 340"', `viewBox="${frames[petKind(pet)]}"`) : image
   }
 
@@ -855,6 +858,7 @@
   }
 
   function petKind(pet) {
+    if (pet.species.includes('鹦鹉')) return 'parrot'
     if (pet.species.includes('松鼠')) return 'squirrel'
     if (pet.species.includes('刺猬')) return 'hedgehog'
     if (pet.species.includes('熊猫')) return 'panda'
@@ -924,6 +928,7 @@
   }
   function renderTripProps(scene, kind = 'dog') {
     if (scene === 'park') return `<div class="trip-butterfly" aria-hidden="true"><svg viewBox="0 0 60 50"><g class="butterfly-wings" fill="#edc58c" stroke="#b5976d" stroke-width="2"><path d="M30 26Q-1 4 7 30Q11 48 30 30Q54 51 54 27Q58 1 30 26Z"/></g><path d="M30 21V36M30 22L25 17M30 22L35 16" stroke="#9b805c" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>`
+    if (kind === 'parrot') return `<div class="parrot-trip-prop" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
     if (kind === 'hedgehog') return `<div class="hedgehog-trip-prop" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
     if (kind !== 'dog') return `<div class="trip-ball" aria-hidden="true">${window.PetArtwork.toy(kind)}</div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
     return `<div class="trip-ball" aria-hidden="true"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="33" fill="#e9bb7c" stroke="#ac8c68" stroke-width="4"/><path d="M40 7Q16 40 40 73M40 7Q66 40 40 73" fill="#a9c7be" stroke="#ac8c68" stroke-width="3"/><path d="M9 29Q39 47 71 29" fill="none" stroke="#fff4d5" stroke-width="5"/></svg></div><div class="trip-play-sparkles" aria-hidden="true"><span>✦</span><span>✧</span></div>`
@@ -931,7 +936,7 @@
   function renderAnimatedAnimal(pet, sleeping = false) {
     const kind = petKind(pet)
     if (sleeping) return window.PetArtwork.sleeping(pet, kind)
-    if (['panda', 'penguin', 'turtle', 'hedgehog', 'squirrel'].includes(kind)) return window.PetArtwork.wildAnimal(pet, kind)
+    if (['panda', 'penguin', 'turtle', 'hedgehog', 'squirrel', 'parrot'].includes(kind)) return window.PetArtwork.wildAnimal(pet, kind)
     const fur = kind === 'dog' ? '#edc48a' : kind === 'cat' ? '#e5a86e' : '#fff7e8'
     const belly = kind === 'rabbit' ? '#edddd0' : '#fff4df'
     const tail = kind === 'rabbit'
@@ -1420,7 +1425,7 @@
   function petPurchaseCost(pet) {
     if (Number.isSafeInteger(pet.adoptionCost) && pet.adoptionCost >= 0) return pet.adoptionCost
     // Older backups predate purchase tracking; their catalogue prices were fixed.
-    if (!/狗|猫|兔|企鹅|龟|刺猬|松鼠/.test(pet.species) && !CATALOG.some(item => item.emoji === pet.emoji)) return 0
+    if (!/狗|猫|兔|企鹅|龟|刺猬|松鼠|鹦鹉/.test(pet.species) && !CATALOG.some(item => item.emoji === pet.emoji)) return 0
     return CATALOG.find(item => item.id === petKind(pet))?.price ?? 0
   }
   function petReturnSignature(pet) {
